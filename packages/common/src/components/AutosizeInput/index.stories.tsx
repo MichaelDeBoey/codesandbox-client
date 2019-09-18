@@ -1,9 +1,10 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+
 import AutosizeInput from '.';
 
-const stories = storiesOf('components/Input', module);
+export default {
+  title: 'components/Input',
+};
 
-stories.add('Basic AutosizeInput', () => (
-  <AutosizeInput value="I am a fancy input" />
-));
+export const Basic = () => <AutosizeInput value="I am a fancy input" />;
+Basic.story = { name: 'Basic AutosizeInput' };

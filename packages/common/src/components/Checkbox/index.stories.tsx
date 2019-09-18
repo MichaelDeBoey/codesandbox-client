@@ -1,30 +1,36 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
+
 import { Checkbox } from '.';
 
-const stories = storiesOf('components/Checkbox', module);
+export default {
+  title: 'components/Checkbox',
+};
 
-stories
-  .add('Basic Checkbox', () => (
-    <>
-      <Checkbox
-        onClick={action('onClick')}
-        onChange={action('onChange')}
-        id="hello"
-      />
-      <label htmlFor="checkbox">Hello</label>
-    </>
-  ))
-  .add('Checked Checkbox', () => (
-    <>
-      <Checkbox
-        onClick={action('onClick')}
-        onChange={action('onChange')}
-        id="hello"
-        checked
-      />
-      <label htmlFor="checkbox">Hello</label>
-    </>
-  ));
+export const Basic = () => (
+  <>
+    <Checkbox
+      onClick={action('onClick')}
+      onChange={action('onChange')}
+      id="hello"
+    />
+
+    <label htmlFor="checkbox">Hello</label>
+  </>
+);
+Basic.story = { name: 'Basic Checkbox' };
+
+export const Checked = () => (
+  <>
+    <Checkbox
+      onClick={action('onClick')}
+      onChange={action('onChange')}
+      id="hello"
+      checked
+    />
+
+    <label htmlFor="checkbox">Hello</label>
+  </>
+);
+Checked.story = { name: 'Checked Checkbox' };

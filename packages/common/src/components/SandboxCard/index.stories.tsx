@@ -1,7 +1,7 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 import { text, select, number, array, boolean } from '@storybook/addon-knobs';
+
 import SandboxCard, { Props, Sandbox } from '.';
 import * as fixtures from './fixtures';
 
@@ -17,6 +17,7 @@ const authorWithKnobs = (
   if (knobs.username !== null || knobs.avatar_url !== null) {
     return knobs;
   }
+
   return author;
 };
 
@@ -56,48 +57,59 @@ const createSandboxStory = ({
   />
 );
 
-storiesOf('components/SandboxCard', module)
-  .add('basic', createSandboxStory({}))
-  .add('small', createSandboxStory({ small: true }))
-  .add('no height', createSandboxStory({ noHeight: true }))
-  .add('default height', createSandboxStory({ defaultHeight: 500 }))
-  .add('no margin', createSandboxStory({ noMargin: true }))
-  .add('popular', createSandboxStory({ sandbox: fixtures.popularSandbox() }))
-  .add(
-    'many tags',
-    createSandboxStory({ sandbox: fixtures.sandboxWithManyTags() })
-  )
-  .add(
-    'long title',
-    createSandboxStory({ sandbox: fixtures.sandboxWithLongTitle() })
-  )
-  .add(
-    'long description',
-    createSandboxStory({
-      sandbox: fixtures.sandboxWithLongDescription(),
-    })
-  )
-  .add(
-    'null author',
-    createSandboxStory({
-      sandbox: fixtures.sandboxWithNullAuthor(),
-    })
-  )
-  .add(
-    'undefined author',
-    createSandboxStory({
-      sandbox: fixtures.sandboxWithUndefinedAuthor(),
-    })
-  )
-  .add(
-    'null screenshot url',
-    createSandboxStory({
-      sandbox: fixtures.sandboxWithNullScreenshotUrl(),
-    })
-  )
-  .add(
-    'undefined screenshot url',
-    createSandboxStory({
-      sandbox: fixtures.sandboxWithUndefinedScreenshotUrl(),
-    })
-  );
+export default {
+  title: 'components/SandboxCard',
+};
+
+export const Basic = createSandboxStory({});
+
+export const Small = createSandboxStory({ small: true });
+
+export const NoHeight = createSandboxStory({ noHeight: true });
+NoHeight.story = { name: 'no height' };
+
+export const DefaultHeight = createSandboxStory({ defaultHeight: 500 });
+DefaultHeight.story = { name: 'default height' };
+
+export const NoMargin = createSandboxStory({ noMargin: true });
+NoMargin.story = { name: 'no margin' };
+
+export const Popular = createSandboxStory({
+  sandbox: fixtures.popularSandbox(),
+});
+Popular.story = { name: 'popular' };
+
+export const ManyTags = createSandboxStory({
+  sandbox: fixtures.sandboxWithManyTags(),
+});
+ManyTags.story = { name: 'many tags' };
+
+export const LongTitle = createSandboxStory({
+  sandbox: fixtures.sandboxWithLongTitle(),
+});
+LongTitle.story = { name: 'long title' };
+
+export const LongDescription = createSandboxStory({
+  sandbox: fixtures.sandboxWithLongDescription(),
+});
+LongDescription.story = { name: 'long description' };
+
+export const NullAuthor = createSandboxStory({
+  sandbox: fixtures.sandboxWithNullAuthor(),
+});
+NullAuthor.story = { name: 'null author' };
+
+export const UndefinedAuthor = createSandboxStory({
+  sandbox: fixtures.sandboxWithUndefinedAuthor(),
+});
+UndefinedAuthor.story = { name: 'undefined author' };
+
+export const NullScreenshotUrl = createSandboxStory({
+  sandbox: fixtures.sandboxWithNullScreenshotUrl(),
+});
+NullScreenshotUrl.story = { name: 'null screenshot url' };
+
+export const UndefinedScreenshotUrl = createSandboxStory({
+  sandbox: fixtures.sandboxWithUndefinedScreenshotUrl(),
+});
+UndefinedScreenshotUrl.story = { name: 'undefined screenshot url' };

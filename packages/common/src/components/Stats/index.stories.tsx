@@ -1,7 +1,7 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import { number } from '@storybook/addon-knobs';
-import StatsComponent from '.';
+
+import StatsComponent from './';
 
 const defaults = () => ({
   viewCount: number('viewCount', 1223),
@@ -9,10 +9,19 @@ const defaults = () => ({
   forkCount: number('forkCount', 122123123),
 });
 
-storiesOf('components/Stats', module)
-  .add('Stats', () => <StatsComponent {...defaults()} />)
-  .add('Stats with text', () => <StatsComponent {...defaults()} text />)
-  .add('Vertical Stats', () => <StatsComponent {...defaults()} vertical />)
-  .add('Vertical Stats with text', () => (
-    <StatsComponent {...defaults()} vertical text />
-  ));
+export default {
+  title: 'components/Stats',
+};
+
+export const Stats = () => <StatsComponent {...defaults()} />;
+
+export const StatsWithText = () => <StatsComponent {...defaults()} text />;
+StatsWithText.story = { name: 'Stats with text' };
+
+export const VerticalStats = () => <StatsComponent {...defaults()} vertical />;
+VerticalStats.story = { name: 'Vertical Stats' };
+
+export const VerticalStatsWithText = () => (
+  <StatsComponent {...defaults()} vertical text />
+);
+VerticalStatsWithText.story = { name: 'Vertical Stats with text' };

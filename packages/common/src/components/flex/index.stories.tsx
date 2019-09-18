@@ -1,11 +1,12 @@
 import React from 'react';
 import styled, { AnyStyledComponent } from 'styled-components';
-import { storiesOf, RenderFunction } from '@storybook/react';
+import { RenderFunction } from '@storybook/react';
 import { color, boolean, number, select } from '@storybook/addon-knobs';
-import Centered from './Centered';
-import Fullscreen from './Fullscreen';
-import Row from './Row';
-import Column from './Column';
+
+import CenteredComponent from './Centered';
+import FullscreenComponent from './Fullscreen';
+import RowComponent from './Row';
+import ColumnComponent from './Column';
 import { alignItemsOptions, justifyContentOptions } from './fixtures';
 import MaxWidth from './MaxWidth';
 
@@ -70,7 +71,11 @@ const makeContent = () => {
   return <>{contents}</>;
 };
 
-const CenteredBordered = makeBorderedContainer('Centered', Centered, 'yellow');
+const CenteredBordered = makeBorderedContainer(
+  'Centered',
+  CenteredComponent,
+  'yellow'
+);
 
 const withCenteredBordered = (fn: RenderFunction) => (
   <CenteredBordered
@@ -83,7 +88,7 @@ const withCenteredBordered = (fn: RenderFunction) => (
 
 const FullscreenBordered = makeBorderedContainer(
   'Fullscreen',
-  Fullscreen,
+  FullscreenComponent,
   'red'
 );
 
@@ -91,7 +96,11 @@ const withFullscreenBordered = (fn: RenderFunction) => (
   <FullscreenBordered>{fn()}</FullscreenBordered>
 );
 
-const ColumnBordered = makeBorderedContainer('Column', Column, 'purple');
+const ColumnBordered = makeBorderedContainer(
+  'Column',
+  ColumnComponent,
+  'purple'
+);
 
 const withColumnBordered = (fn: RenderFunction) => (
   <ColumnBordered
@@ -108,7 +117,7 @@ const withColumnBordered = (fn: RenderFunction) => (
   </ColumnBordered>
 );
 
-const RowBordered = makeBorderedContainer('Row', Row, 'orange');
+const RowBordered = makeBorderedContainer('Row', RowComponent, 'orange');
 
 const withRowBordered = (fn: RenderFunction) => (
   <RowBordered
@@ -150,72 +159,84 @@ const repeat = (name: string, fn: RenderFunction) => () => {
   return <>{content}</>;
 };
 
-storiesOf('components/flex', module)
-  .addDecorator(withBackground)
-  .add('Centered', () => withCenteredBordered(makeContent))
-  .add('Fullscreen', () => withFullscreenBordered(makeContent))
-  .add('MaxWidth', () => withMaxWidthBordered(makeContent))
-  .add('Column', () => withColumnBordered(makeContent))
-  .add('Row', () => withRowBordered(makeContent))
-  .add('Fullscreen > Centered', () =>
-    withFullscreenBordered(
-      repeat('Centered', () => withCenteredBordered(makeContent))
-    )
-  )
-  .add('Fullscreen > Column', () =>
-    withFullscreenBordered(
-      repeat('Column', () => withColumnBordered(makeContent))
-    )
-  )
-  .add('Fullscreen > Row', () =>
-    withFullscreenBordered(repeat('Row', () => withRowBordered(makeContent)))
-  )
-  .add('MaxWidth > Centered', () =>
-    withMaxWidthBordered(
-      repeat('Centered', () => withCenteredBordered(makeContent))
-    )
-  )
-  .add('MaxWidth > Column', () =>
-    withMaxWidthBordered(
-      repeat('Column', () => withColumnBordered(makeContent))
-    )
-  )
-  .add('MaxWidth > Row', () =>
-    withMaxWidthBordered(repeat('Row', () => withRowBordered(makeContent)))
-  )
-  .add('Playground \uD83D\uDE80', () => {
-    const decorators = [];
-    let current = null;
+export default {
+  title: 'components/flex',
+  decorators: [withBackground],
+};
 
-    do {
-      current = select(
-        `Component ${decorators.length}`,
-        ['Fullscreen', 'MaxWidth', 'Centered', 'Row', 'Column', null],
-        null,
-        'structure'
-      );
+export const Centered = () => withCenteredBordered(makeContent);
 
-      switch (current) {
-        case 'Fullscreen':
-          decorators.push(withFullscreenBordered);
-          break;
-        case 'MaxWidth':
-          decorators.push(withMaxWidthBordered);
-          break;
-        case 'Centered':
-          decorators.push(withCenteredBordered);
-          break;
-        case 'Row':
-          decorators.push(withRowBordered);
-          break;
-        case 'Column':
-          decorators.push(withColumnBordered);
-          break;
-      }
-    } while (current);
+export const Fullscreen = () => withFullscreenBordered(makeContent);
 
-    return decorators.reduceRight(
-      (last, decorator, i) => repeat(`Component ${i}`, () => decorator(last)),
-      makeContent
-    )();
-  });
+export const MaxWidth = () => withMaxWidthBordered(makeContent);
+
+export const Column = () => withColumnBordered(makeContent);
+
+export const Row = () => withRowBordered(makeContent);
+
+export const FullscreenCentered = () =>
+  withFullscreenBordered(
+    repeat('Centered', () => withCenteredBordered(makeContent))
+  );
+FullscreenCentered.story = { name: 'Fullscreen > Centered' };
+
+export const FullscreenColumn = () =>
+  withFullscreenBordered(
+    repeat('Column', () => withColumnBordered(makeContent))
+  );
+FullscreenColumn.story = { name: 'Fullscreen > Column' };
+
+export const FullscreenRow = () =>
+  withFullscreenBordered(repeat('Row', () => withRowBordered(makeContent)));
+FullscreenRow.story = { name: 'Fullscreen > Row' };
+
+export const MaxWidthCentered = () =>
+  withMaxWidthBordered(
+    repeat('Centered', () => withCenteredBordered(makeContent))
+  );
+MaxWidthCentered.story = { name: 'MaxWidth > Centered' };
+
+export const MaxWidthColumn = () =>
+  withMaxWidthBordered(repeat('Column', () => withColumnBordered(makeContent)));
+MaxWidthColumn.story = { name: 'MaxWidth > Column' };
+
+export const MaxWidthRow = () =>
+  withMaxWidthBordered(repeat('Row', () => withRowBordered(makeContent)));
+MaxWidthRow.story = { name: 'MaxWidth > Row' };
+
+export const Playground = () => {
+  const decorators = [];
+  let current = null;
+
+  do {
+    current = select(
+      `Component ${decorators.length}`,
+      ['Fullscreen', 'MaxWidth', 'Centered', 'Row', 'Column', null],
+      null,
+      'structure'
+    );
+
+    switch (current) {
+      case 'Fullscreen':
+        decorators.push(withFullscreenBordered);
+        break;
+      case 'MaxWidth':
+        decorators.push(withMaxWidthBordered);
+        break;
+      case 'Centered':
+        decorators.push(withCenteredBordered);
+        break;
+      case 'Row':
+        decorators.push(withRowBordered);
+        break;
+      case 'Column':
+        decorators.push(withColumnBordered);
+        break;
+    }
+  } while (current);
+
+  return decorators.reduceRight(
+    (last, decorator, i) => repeat(`Component ${i}`, () => decorator(last)),
+    makeContent
+  )();
+};

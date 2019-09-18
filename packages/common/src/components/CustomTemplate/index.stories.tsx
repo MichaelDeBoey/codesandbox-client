@@ -1,8 +1,9 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import { object } from '@storybook/addon-knobs';
-import CustomTemplate from '.';
+
 import { sandbox } from '../SandboxCard/fixtures';
+
+import CustomTemplate from './';
 
 const template = (props = null) => ({
   id: '2321',
@@ -10,19 +11,27 @@ const template = (props = null) => ({
   sandbox: sandbox(props),
 });
 
-const stories = storiesOf('components/CustomTemplate', module);
-stories
-  .add('Default', () => (
-    <CustomTemplate template={object('template', template())} />
-  ))
-  .add('No Title', () => (
-    <CustomTemplate template={object('template', template({ title: null }))} />
-  ))
-  .add('No Description', () => (
-    <CustomTemplate
-      template={object('template', template({ description: null }))}
-    />
-  ))
-  .add('No Tags', () => (
-    <CustomTemplate template={object('template', template({ tags: [] }))} />
-  ));
+export default {
+  title: 'components/CustomTemplate',
+};
+
+export const Default = () => (
+  <CustomTemplate template={object('template', template())} />
+);
+
+export const NoTitle = () => (
+  <CustomTemplate template={object('template', template({ title: null }))} />
+);
+NoTitle.story = { name: 'No Title' };
+
+export const NoDescription = () => (
+  <CustomTemplate
+    template={object('template', template({ description: null }))}
+  />
+);
+NoDescription.story = { name: 'No Description' };
+
+export const NoTags = () => (
+  <CustomTemplate template={object('template', template({ tags: [] }))} />
+);
+NoTags.story = { name: 'No Tags' };

@@ -1,15 +1,12 @@
 import React, { Fragment } from 'react';
-
 import { withKnobs } from '@storybook/addon-knobs';
 import { withA11y } from '@storybook/addon-a11y';
 import { addDecorator, addParameters, configure } from '@storybook/react';
 import { themes } from '@storybook/theming';
-
-import { ThemeDecorator } from '../src/stories/decorators';
-
 import { createGlobalStyle } from 'styled-components';
 
 import global from '../src/global.css';
+import { ThemeDecorator } from '../src/stories/decorators';
 
 const viewports = {
   mobile: {
@@ -71,10 +68,4 @@ addParameters({
 });
 
 // automatically import all files ending in *.stories.tsx
-const req = require.context('../src', true, /.stories.tsx$/);
-
-const loadStories = () => {
-  req.keys().forEach(req);
-};
-
-configure(loadStories, module);
+configure(require.context('../src', true, /\.stories\.tsx$/), module);

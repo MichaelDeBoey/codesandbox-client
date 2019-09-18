@@ -1,21 +1,24 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+
 import GithubBadge from '.';
 
-const stories = storiesOf('components/GithubBadge', module);
+export default {
+  title: 'components/GithubBadge',
+};
 
-stories
-  .add('Master', () => (
-    <GithubBadge
-      username="CompuIves"
-      repo="codesandbox-client"
-      branch="master"
-    />
-  ))
-  .add('Other Branch', () => (
-    <GithubBadge
-      username="CompuIves"
-      repo="codesandbox-client"
-      branch="storybook"
-    />
-  ));
+export const Master = () => (
+  <GithubBadge
+    username="CompuIves"
+    repo="codesandbox-client"
+    branch="master"
+  />
+);
+
+export const OtherBranch = () => (
+  <GithubBadge
+    username="CompuIves"
+    repo="codesandbox-client"
+    branch="storybook"
+  />
+);
+OtherBranch.story = { name: 'Other Branch' };

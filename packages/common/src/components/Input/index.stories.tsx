@@ -1,10 +1,16 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+
 import Input from '.';
 
-const stories = storiesOf('components/Input', module);
+export default {
+  title: 'components/Input',
+};
 
-stories
-  .add('Basic Input', () => <Input value="I am a fancy input" />)
-  .add('Error Input', () => <Input value="I am a fancy input" error />)
-  .add('Placeholder Input', () => <Input placeholder="Hello" />);
+export const Basic = () => <Input value="I am a fancy input" />;
+Basic.story = { name: 'Basic Input' };
+
+export const Error = () => <Input value="I am a fancy input" error />;
+Error.story = { name: 'Error Input' };
+
+export const Placeholder = () => <Input placeholder="Hello" />;
+Placeholder.story = { name: 'Placeholder Input' };

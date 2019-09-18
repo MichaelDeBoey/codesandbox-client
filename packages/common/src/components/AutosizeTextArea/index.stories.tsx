@@ -1,8 +1,10 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
+
 import AutosizeTextArea from '.';
 
-const stories = storiesOf('components/Input', module);
-stories.add('Basic AutosizeTextArea', () => (
-  <AutosizeTextArea value="I am a fancy textarea" />
-));
+export default {
+  title: 'components/Input',
+};
+
+export const Basic = () => <AutosizeTextArea value="I am a fancy textarea" />;
+Basic.story = { name: 'Basic AutosizeTextArea' };

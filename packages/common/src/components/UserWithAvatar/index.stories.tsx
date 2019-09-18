@@ -1,7 +1,7 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { text, boolean } from '@storybook/addon-knobs';
-import { UserWithAvatar } from '.';
+import { date, text, boolean } from '@storybook/addon-knobs';
+
+import { UserWithAvatar } from './';
 
 const defaults = () => ({
   username: text('Username', 'SaraVieira'),
@@ -11,20 +11,31 @@ const defaults = () => ({
   ),
 });
 
-storiesOf('components/UserAvatar', module)
-  .add('User', () => <UserWithAvatar {...defaults()} />)
-  .add('With Name', () => (
-    <UserWithAvatar {...defaults()} name={text('name', 'Sara Vieira')} />
-  ))
-  .add('With Subscription', () => (
-    <UserWithAvatar
-      {...defaults()}
-      subscriptionSince={text('subscriptionSince', new Date().toString())}
-    />
-  ))
-  .add('With hideBadge', () => (
-    <UserWithAvatar {...defaults()} hideBadge={boolean('hideBadge', true)} />
-  ))
-  .add('With useBigName', () => (
-    <UserWithAvatar {...defaults()} useBigName={boolean('useBigName', true)} />
-  ));
+export default {
+  title: 'components/UserAvatar',
+};
+
+export const User = () => <UserWithAvatar {...defaults()} />;
+
+export const UserWithName = () => (
+  <UserWithAvatar {...defaults()} name={text('name', 'Sara Vieira')} />
+);
+UserWithName.story = { name: 'With Name' };
+
+export const UserWithSubscription = () => (
+  <UserWithAvatar
+    {...defaults()}
+    subscriptionSince={date('subscriptionSince', new Date())}
+  />
+);
+UserWithSubscription.story = { name: 'With Subscription' };
+
+export const UserWithHiddenBadge = () => (
+  <UserWithAvatar {...defaults()} hideBadge={boolean('hideBadge', true)} />
+);
+UserWithHiddenBadge.story = { name: 'With hideBadge' };
+
+export const UserWithBigName = () => (
+  <UserWithAvatar {...defaults()} useBigName={boolean('useBigName', true)} />
+);
+UserWithBigName.story = { name: 'With useBigName' };
