@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { FunctionComponent, useEffect, useState } from 'react';
 import { MoreData } from './elements';
 
 const formatSize = (value: number) => {
   let unit: string;
   let size: number;
+
   if (Math.log10(value) < 3) {
     unit = 'B';
     size = value;
@@ -18,26 +19,31 @@ const formatSize = (value: number) => {
   return `${size.toFixed(1)}${unit}`;
 };
 
+type Bundle = {
+  gzip: number;
+  size: number;
+};
 type Props = {
   dependency: string;
   version: string;
 };
-
-export const BundleSizes = ({ dependency, version = '' }: Props) => {
-  const [size, setSize] = useState(null);
+export const BundleSizes: FunctionComponent<Props> = ({
+  dependency,
+  version,
+}) => {
+  const [bundle, setBundle] = useState<Bundle | null>(null);
   const [error, setError] = useState(null);
 
+  const getSizeForPKG = (packageName: string) => {
+    fetch(`https://bundlephobia.com/api/size?package=${packageName}`)
+      .then(data => data.json())
+      .then(setBundle)
+      .catch(setError);
+  };
   useEffect(() => {
     const cleanVersion = version.split('^');
     getSizeForPKG(`${dependency}@${cleanVersion[cleanVersion.length - 1]}`);
   }, [dependency, version]);
-
-  const getSizeForPKG = (pkg: string) => {
-    fetch(`https://bundlephobia.com/api/size?package=${pkg}`)
-      .then(rsp => rsp.json())
-      .then(setSize)
-      .catch(setError);
-  };
 
   if (error) {
     return (
@@ -45,13 +51,14 @@ export const BundleSizes = ({ dependency, version = '' }: Props) => {
     );
   }
 
-  return size ? (
+  return bundle ? (
     <MoreData>
       <li>
-        <span>Gzip:</span> {formatSize(size.gzip)}
+        <span>Gzip:</span> {formatSize(bundle.gzip)}
       </li>
+
       <li>
-        <span>Size:</span> {formatSize(size.size)}
+        <span>Size:</span> {formatSize(bundle.size)}
       </li>
     </MoreData>
   ) : null;

@@ -1,5 +1,7 @@
-import styled, { css } from 'styled-components';
 import Select from '@codesandbox/common/lib/components/Select';
+import TooltipBase from '@codesandbox/common/lib/components/Tooltip';
+import styled, { css } from 'styled-components';
+
 import { EntryContainer } from '../../elements';
 
 export const Version = styled.div<{ hovering?: boolean }>`
@@ -30,7 +32,11 @@ export const MoreData = styled(EntryContainer)`
   }
 `;
 
-export const VersionSelect = styled(Select)<{ hovering?: boolean }>`
+export const Tooltip = styled(TooltipBase)`
+  outline: none;
+`;
+
+export const VersionSelect = styled(Select)<{ hovering: boolean }>`
   ${({ hovering, theme }) => css`
     visibility: ${hovering ? 'visible' : 'hidden'};
     width: 60px;

@@ -14,9 +14,6 @@ import { VersionEntry } from './VersionEntry';
 
 export const Dependencies: FunctionComponent = () => {
   const {
-    actions: {
-      editor: { addNpmDependency, npmDependencyRemoved },
-    },
     state: {
       editor: {
         currentSandbox: { externalResources, template },
@@ -54,8 +51,6 @@ export const Dependencies: FunctionComponent = () => {
               dependencies={dependencies}
               dependency={dependency}
               key={dependency}
-              onRefresh={(name, version) => addNpmDependency({ name, version })}
-              onRemove={name => npmDependencyRemoved(name)}
             />
           ))}
 
@@ -70,8 +65,6 @@ export const Dependencies: FunctionComponent = () => {
               dependencies={devDependencies}
               dependency={dependency}
               key={dependency}
-              onRefresh={(name, version) => addNpmDependency({ name, version })}
-              onRemove={name => npmDependencyRemoved(name)}
             />
           ))} */}
 
