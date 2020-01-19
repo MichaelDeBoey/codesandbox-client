@@ -1,5 +1,4 @@
 import Select from '@codesandbox/common/lib/components/Select';
-import TooltipBase from '@codesandbox/common/lib/components/Tooltip';
 import styled, { css } from 'styled-components';
 
 import { EntryContainer } from '../../elements';
@@ -30,10 +29,6 @@ export const MoreData = styled(EntryContainer)`
       margin-bottom: 0.5rem;
     }
   }
-`;
-
-export const Tooltip = styled(TooltipBase)`
-  outline: none;
 `;
 
 export const VersionSelect = styled(Select)<{ hovering: boolean }>`

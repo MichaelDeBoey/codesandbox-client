@@ -1,27 +1,22 @@
-import { SingletonTooltip } from '@codesandbox/common/lib/components/Tooltip';
 import { formatVersion } from '@codesandbox/common/lib/utils/ci';
 import algoliaSearch from 'algoliasearch/lite';
 import compareVersions from 'compare-versions';
 import React, {
   ChangeEvent,
   FunctionComponent,
-  MouseEvent,
   useEffect,
   useState,
 } from 'react';
-import CrossIcon from 'react-icons/lib/md/clear';
-import ArrowDropDown from 'react-icons/lib/md/keyboard-arrow-down';
-import ArrowDropUp from 'react-icons/lib/md/keyboard-arrow-up';
-import RefreshIcon from 'react-icons/lib/md/refresh';
 
 import { useOvermind } from 'app/overmind';
 
-import { EntryContainer, IconArea, Icon } from '../../elements';
+import { EntryContainer } from '../../elements';
 
 import { Link } from '../elements';
 
+import { Actions } from './Actions';
 import { BundleSizes } from './BundleSizes';
-import { Tooltip, Version, VersionSelect } from './elements';
+import { Version, VersionSelect } from './elements';
 
 type Props = {
   dependencies: { [dependency: string]: string };
@@ -33,11 +28,11 @@ export const VersionEntry: FunctionComponent<Props> = ({
 }) => {
   const {
     actions: {
-      editor: { addNpmDependency, npmDependencyRemoved },
+      editor: { addNpmDependency },
     },
   } = useOvermind();
   const [hovering, setHovering] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [showBundleSizes, setShowBundleSizes] = useState(false);
   const [version, setVersion] = useState(null);
   const [versions, setVersions] = useState([]);
 
@@ -79,18 +74,6 @@ export const VersionEntry: FunctionComponent<Props> = ({
     }
   }, [dependencies, dependency]);
 
-  const refreshDependency = (event: MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    addNpmDependency({ name: dependency });
-  };
-  const removeDependency = (event: MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    npmDependencyRemoved(dependency);
-  };
   const selectVersion = ({
     target: { value },
   }: ChangeEvent<HTMLSelectElement>) => {
@@ -130,38 +113,15 @@ export const VersionEntry: FunctionComponent<Props> = ({
         </Version>
 
         {hovering && (
-          <IconArea>
-            <SingletonTooltip>
-              {singleton => (
-                <>
-                  <Tooltip
-                    content={open ? 'Hide sizes' : 'Show sizes'}
-                    singleton={singleton}
-                  >
-                    <Icon onClick={() => setOpen(show => !show)}>
-                      {open ? <ArrowDropUp /> : <ArrowDropDown />}
-                    </Icon>
-                  </Tooltip>
-
-                  <Tooltip content="Update to latest" singleton={singleton}>
-                    <Icon onClick={refreshDependency}>
-                      <RefreshIcon />
-                    </Icon>
-                  </Tooltip>
-
-                  <Tooltip content="Remove" singleton={singleton}>
-                    <Icon onClick={removeDependency}>
-                      <CrossIcon />
-                    </Icon>
-                  </Tooltip>
-                </>
-              )}
-            </SingletonTooltip>
-          </IconArea>
+          <Actions
+            dependencyName={dependency}
+            showBundleSizes={showBundleSizes}
+            setShowBundleSizes={setShowBundleSizes}
+          />
         )}
       </EntryContainer>
 
-      {open ? (
+      {showBundleSizes ? (
         <BundleSizes
           dependency={dependency}
           version={dependencies[dependency]}
