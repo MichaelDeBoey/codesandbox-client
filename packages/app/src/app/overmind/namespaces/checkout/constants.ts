@@ -6,17 +6,18 @@ import { PricingPlan, CreditAddon } from './types';
 export const FREE_PLAN: PricingPlan = {
   id: 'free',
   name: 'Free',
-  price: 0,
+  priceMonthly: 0,
+  priceYearly: 0,
   credits: 400,
   creditsNote: 'Ideal for hobbyists using Devboxes up to 40 hours a month.',
   storage: 20,
   usage: [
     'Up to 40 hours worth of VM credits per month',
-    '20 GB storage per VM',
-    'VMs up to 4 vCPUs + 8 GB RAM',
+    'VMs up to 4 vCPUs + 8 GiB RAM',
+    '5 private Sandboxes',
+    'Unlimited public Sandboxes',
+    'Unlimited personal drafts',
     'Unlimited Devboxes and repositories',
-    '20 Sandboxes',
-    '10 personal drafts',
     '5 members',
   ],
   features: [
@@ -32,9 +33,9 @@ export const FREE_PLAN: PricingPlan = {
 export const PRO_PLAN: PricingPlan = {
   id: 'flex',
   name: 'Pro',
-  price: 12,
+  priceMonthly: 12,
+  priceYearly: 9,
   credits: 1000,
-  recurringTypeDescription: 'per month per workspace',
   creditsNote:
     'Ideal to get started with cloud development and understand your usage needs.',
   storage: 50,
@@ -43,31 +44,10 @@ export const PRO_PLAN: PricingPlan = {
     'Start from 100 hours worth of VM credits per month',
     '50 GB storage per VM',
     'VMs up to 16 vCPUs + 32 GB RAM',
-    'Unlimited Devboxes and repositories',
-    'Unlimited Sandboxes',
+    'Unlimited public Sandboxes',
+    'Unlimited private Sandboxes',
     'Unlimited personal drafts',
-    '20 members',
-    'Access on-demand VM credits for $0.18 per hour',
-  ],
-};
-
-export const PRO_PLAN_ANNUAL: PricingPlan = {
-  id: 'flex',
-  name: 'Pro',
-  price: 9,
-  credits: 1000,
-  recurringTypeDescription: 'per workspace per month billed annually',
-  creditsNote:
-    'Ideal to get started with cloud development and understand your usage needs.',
-  storage: 50,
-  features: ['All free features', 'Unlimited Codeium AI code completions'],
-  usage: [
-    'Start from 100 hours worth of VM credits per month',
-    '50 GB storage per VM',
-    'VMs up to 16 vCPUs + 32 GB RAM',
     'Unlimited Devboxes and repositories',
-    'Unlimited Sandboxes',
-    'Unlimited personal drafts',
     '20 members',
     'Access on-demand VM credits for $0.18 per hour',
   ],
@@ -76,17 +56,19 @@ export const PRO_PLAN_ANNUAL: PricingPlan = {
 export const ENTERPRISE_PLAN: PricingPlan = {
   id: 'enterprise',
   name: 'Enterprise',
-  price: 0,
+  priceMonthly: 0,
+  priceYearly: 0,
   credits: 0,
   storage: 0,
   usage: [],
   features: [
     'Unlimited members',
     'Unlimited API',
-    'VMs up to 64 vCPUs + 128 GB RAM',
+    'VMs up to 64 vCPUs + 128 GiB RAM',
     'On-premise options',
     'Private managed cloud',
     'Dedicated support',
+    'SOC 2 Type II compliant',
     'SSO',
   ],
 };
@@ -94,13 +76,15 @@ export const ENTERPRISE_PLAN: PricingPlan = {
 export const ADDON_CREDITS_500: CreditAddon = {
   id: 'credits_500',
   credits: 500,
-  price: 9,
+  priceMonthly: 9,
+  priceYearly: 108,
 };
 
 export const ADDON_CREDITS_4000: CreditAddon = {
   id: 'credits_4000',
   credits: 4000,
-  price: 50,
+  priceMonthly: 50,
+  priceYearly: 600,
   fullPrice: 72,
   discount: 30,
 };
@@ -108,7 +92,8 @@ export const ADDON_CREDITS_4000: CreditAddon = {
 export const ADDON_CREDITS_24000: CreditAddon = {
   id: 'credits_24000',
   credits: 24000,
-  price: 216,
+  priceMonthly: 216,
+  priceYearly: 2592,
   fullPrice: 432,
   discount: 50,
 };

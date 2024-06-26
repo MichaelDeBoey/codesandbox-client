@@ -61,6 +61,10 @@ import {
   UpdateProjectVmTierMutation,
   UpdateUsageSubscriptionMutationVariables,
   UpdateUsageSubscriptionMutation,
+  SetTeamMetadataMutation,
+  SetTeamMetadataMutationVariables,
+  JoinEligibleWorkspaceMutation,
+  JoinEligibleWorkspaceMutationVariables,
 } from 'app/graphql/types';
 import { gql, Query } from 'overmind-graphql';
 
@@ -136,11 +140,13 @@ export const addSandboxToFolder: Query<
     $collectionPath: String
     $sandboxIds: [ID!]!
     $teamId: UUID4
+    $privacy: Int
   ) {
     addToCollectionOrTeam(
       collectionPath: $collectionPath
       sandboxIds: $sandboxIds
       teamId: $teamId
+      privacy: $privacy
     ) {
       ...sandboxFragmentDashboard
     }
@@ -430,11 +436,13 @@ export const previewConvertToUsageBilling: Query<
     $teamId: UUID4!
     $addons: [String!]!
     $plan: String!
+    $billingInterval: SubscriptionInterval
   ) {
     previewConvertToUsageBilling(
       plan: $plan
       addons: $addons
       teamId: $teamId
+      billingInterval: $billingInterval
     ) {
       total
       totalExcludingTax
@@ -450,8 +458,14 @@ export const convertToUsageBilling: Query<
     $teamId: UUID4!
     $addons: [String!]!
     $plan: String!
+    $billingInterval: SubscriptionInterval
   ) {
-    convertToUsageBilling(plan: $plan, addons: $addons, teamId: $teamId)
+    convertToUsageBilling(
+      plan: $plan
+      addons: $addons
+      teamId: $teamId
+      billingInterval: $billingInterval
+    )
   }
 `;
 
@@ -473,6 +487,29 @@ export const updateProjectVmTier: Query<
       cpu
       memory
       storage
+    }
+  }
+`;
+
+export const setTeamMetadata: Query<
+  SetTeamMetadataMutation,
+  SetTeamMetadataMutationVariables
+> = gql`
+  mutation SetTeamMetadata($teamId: UUID4!, $useCases: [String!]!) {
+    setTeamMetadata(teamId: $teamId, metadata: { useCases: $useCases }) {
+      ...teamFragmentDashboard
+    }
+  }
+  ${teamFragmentDashboard}
+`;
+
+export const joinEligibleWorkspace: Query<
+  JoinEligibleWorkspaceMutation,
+  JoinEligibleWorkspaceMutationVariables
+> = gql`
+  mutation JoinEligibleWorkspace($workspaceId: ID!) {
+    joinEligibleWorkspace(workspaceId: $workspaceId) {
+      id
     }
   }
 `;

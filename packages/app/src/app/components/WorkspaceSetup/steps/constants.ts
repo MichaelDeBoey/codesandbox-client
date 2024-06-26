@@ -5,7 +5,8 @@ export type PricingPlanFeatures = {
   name: string;
   members: number;
   storage: string;
-  sandboxes: string | number;
+  publicSandboxes: string | number;
+  privateSandboxes: string | number;
   devboxes: number;
   repositories: number;
   drafts: number;
@@ -17,6 +18,7 @@ export type PricingPlanFeatures = {
   apiAccess: boolean;
   protectedPreviews: boolean;
   sso: boolean;
+  soc2: boolean;
   privateCloud: boolean;
   onPremise: boolean;
   instantEnvironmentResume: boolean;
@@ -28,10 +30,11 @@ export const FREE_FEATURES: PricingPlanFeatures = {
   name: 'Free',
   members: 5,
   storage: '20 GB',
-  sandboxes: 20,
+  publicSandboxes: 'Unlimited',
+  privateSandboxes: 5,
   devboxes: Number.MAX_SAFE_INTEGER,
   repositories: Number.MAX_SAFE_INTEGER,
-  drafts: 10,
+  drafts: Number.MAX_SAFE_INTEGER,
   vmType: `4 vCPUs<br/>8 GB RAM`,
   privateProject: true,
   shareableLinks: true,
@@ -40,6 +43,7 @@ export const FREE_FEATURES: PricingPlanFeatures = {
   apiAccess: true,
   protectedPreviews: false,
   sso: false,
+  soc2: true,
   privateCloud: false,
   onPremise: false,
   instantEnvironmentResume: true,
@@ -52,7 +56,8 @@ export const PRO_FEATURES: PricingPlanFeatures = {
   members: 20,
   storage: `50 GB<br/>
     <small>more with add-ons</small>`,
-  sandboxes: Number.MAX_SAFE_INTEGER,
+  publicSandboxes: Number.MAX_SAFE_INTEGER,
+  privateSandboxes: Number.MAX_SAFE_INTEGER,
   devboxes: Number.MAX_SAFE_INTEGER,
   repositories: Number.MAX_SAFE_INTEGER,
   drafts: Number.MAX_SAFE_INTEGER,
@@ -64,6 +69,7 @@ export const PRO_FEATURES: PricingPlanFeatures = {
   apiAccess: true,
   protectedPreviews: false,
   sso: false,
+  soc2: true,
   privateCloud: false,
   onPremise: false,
   instantEnvironmentResume: true,
@@ -75,7 +81,8 @@ export const ENTERPRISE_FEATURES: PricingPlanFeatures = {
   name: 'Enterprise',
   members: Number.MAX_SAFE_INTEGER,
   storage: 'Custom',
-  sandboxes: Number.MAX_SAFE_INTEGER,
+  publicSandboxes: Number.MAX_SAFE_INTEGER,
+  privateSandboxes: Number.MAX_SAFE_INTEGER,
   devboxes: Number.MAX_SAFE_INTEGER,
   repositories: Number.MAX_SAFE_INTEGER,
   drafts: Number.MAX_SAFE_INTEGER,
@@ -87,6 +94,7 @@ export const ENTERPRISE_FEATURES: PricingPlanFeatures = {
   apiAccess: true,
   protectedPreviews: true,
   sso: true,
+  soc2: true,
   privateCloud: true,
   onPremise: true,
   instantEnvironmentResume: true,

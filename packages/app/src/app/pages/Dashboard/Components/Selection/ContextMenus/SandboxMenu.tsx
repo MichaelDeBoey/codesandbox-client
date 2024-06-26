@@ -38,7 +38,7 @@ export const SandboxMenu: React.FC<SandboxMenuProps> = ({
   const history = useHistory();
   const location = useLocation();
   const { userRole, isTeamAdmin, isTeamViewer } = useWorkspaceAuthorization();
-  const { isFrozen } = useWorkspaceLimits();
+  const { isFrozen, hasReachedPrivateSandboxLimit } = useWorkspaceLimits();
 
   const url = sandboxUrl(sandbox, hasBetaEditorExperiment);
   const linksToV2 = sandbox.isV2 || (!sandbox.isSse && hasBetaEditorExperiment);
@@ -156,6 +156,10 @@ export const SandboxMenu: React.FC<SandboxMenuProps> = ({
               openInNewWindow: true,
               hasBetaEditorExperiment,
               redirectAfterFork: true,
+              body: {
+                privacy: sandbox.draft ? 2 : (sandbox.privacy as 2 | 1 | 0),
+                collectionId: sandbox.draft ? undefined : sandbox.collection.id,
+              },
             });
           }}
           disabled={restrictedFork}
@@ -163,20 +167,8 @@ export const SandboxMenu: React.FC<SandboxMenuProps> = ({
           Fork
         </MenuItem>
       ) : null}
-      {hasWriteAccess && isDraft ? (
-        <MenuItem
-          onSelect={() => {
-            actions.dashboard.addSandboxesToFolder({
-              sandboxIds: [item.sandbox.id],
-              collectionPath: '/',
-              teamId: activeTeam,
-            });
-          }}
-        >
-          Move out of Drafts
-        </MenuItem>
-      ) : null}
-      {hasWriteAccess ? (
+
+      {hasWriteAccess && !isTemplate ? (
         <MenuItem
           onSelect={() => {
             actions.modals.moveSandboxModal.open({
@@ -229,6 +221,7 @@ export const SandboxMenu: React.FC<SandboxMenuProps> = ({
           )}
           {sandbox.privacy !== 1 && (
             <MenuItem
+              disabled={hasReachedPrivateSandboxLimit}
               onSelect={() =>
                 actions.dashboard.changeSandboxesPrivacy({
                   sandboxIds: [sandbox.id],
@@ -241,6 +234,7 @@ export const SandboxMenu: React.FC<SandboxMenuProps> = ({
           )}
           {sandbox.privacy !== 2 && (
             <MenuItem
+              disabled={hasReachedPrivateSandboxLimit}
               onSelect={() =>
                 actions.dashboard.changeSandboxesPrivacy({
                   sandboxIds: [sandbox.id],

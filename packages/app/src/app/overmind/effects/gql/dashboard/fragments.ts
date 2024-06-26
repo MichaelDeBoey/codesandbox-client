@@ -38,6 +38,7 @@ export const sandboxFragmentDashboard = gql`
 
     collection {
       path
+      id
     }
 
     authorId
@@ -161,6 +162,16 @@ export const teamFragmentDashboard = gql`
       ubbBeta
       friendOfCsb
     }
+
+    limits {
+      includedPublicSandboxes
+      includedPrivateSandboxes
+    }
+
+    usage {
+      publicSandboxesQuantity
+      privateSandboxesQuantity
+    }
   }
 `;
 
@@ -228,6 +239,7 @@ export const currentTeamInfoFragment = gql`
     }
 
     subscriptionSchedule {
+      billingInterval
       current {
         items {
           name
@@ -238,7 +250,6 @@ export const currentTeamInfoFragment = gql`
         startDate
         endDate
       }
-
       upcoming {
         items {
           name
@@ -253,20 +264,26 @@ export const currentTeamInfoFragment = gql`
 
     limits {
       includedCredits
-      includedSandboxes
-      includedDrafts
       includedVmTier
       onDemandCreditLimit
+      includedPublicSandboxes
+      includedPrivateSandboxes
     }
 
     usage {
       sandboxes
       credits
+      publicSandboxesQuantity
+      privateSandboxesQuantity
     }
 
     featureFlags {
       ubbBeta
       friendOfCsb
+    }
+
+    metadata {
+      useCases
     }
   }
 `;
@@ -294,6 +311,35 @@ export const branchFragment = gql`
   }
 `;
 
+export const branchWithPRFragment = gql`
+  fragment branchWithPR on Branch {
+    id
+    name
+    contribution
+    lastAccessedAt
+    upstream
+    project {
+      repository {
+        ... on GitHubRepository {
+          defaultBranch
+          name
+          owner
+          private
+        }
+      }
+      team {
+        id
+      }
+    }
+    pullRequests {
+      title
+      number
+      additions
+      deletions
+    }
+  }
+`;
+
 export const projectFragment = gql`
   fragment project on Project {
     appInstalled
@@ -317,7 +363,7 @@ export const projectWithBranchesFragment = gql`
   fragment projectWithBranches on Project {
     appInstalled
     branches {
-      ...branch
+      ...branchWithPR
     }
     repository {
       ... on GitHubRepository {
@@ -331,7 +377,7 @@ export const projectWithBranchesFragment = gql`
       id
     }
   }
-  ${branchFragment}
+  ${branchWithPRFragment}
 `;
 
 export const githubRepoFragment = gql`
