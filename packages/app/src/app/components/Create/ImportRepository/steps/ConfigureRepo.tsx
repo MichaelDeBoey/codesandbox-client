@@ -62,10 +62,6 @@ export const ConfigureRepo: React.FC<ConfigureRepoProps> = ({
 
   const { openNewWindow: openGHAppInstallWindow } = useNewControlledWindow({
     url: githubAppInstallLink(),
-    trackEvents: {
-      open: 'Import repository - Configure - Click Install GH App',
-      close: 'Import repository - Configure - Close GH App Window',
-    },
     onCloseWindow: () => {
       onRefetchGithubRepo({
         owner: repository.owner.login,
@@ -82,10 +78,6 @@ export const ConfigureRepo: React.FC<ConfigureRepoProps> = ({
     }
 
     setIsImporting(true);
-    track('Import repository - Configure - Click import', {
-      vmTier: selectedTier,
-      appInstalled: repository.appInstalled,
-    });
 
     const result = await dashboard.importGitHubRepository({
       name: repository.name,
@@ -94,7 +86,10 @@ export const ConfigureRepo: React.FC<ConfigureRepoProps> = ({
     });
 
     if (result.success) {
-      track('Import repository - Configure - Import successful');
+      track('Import repository - Configure - Import successful', {
+        vmTier: selectedTier,
+        appInstalled: repository.appInstalled,
+      });
 
       window.location.href = v2BranchUrl({
         owner: repository.owner.login,
@@ -186,7 +181,7 @@ export const ConfigureRepo: React.FC<ConfigureRepoProps> = ({
           </Text>
 
           <Select
-            css={{ height: '32px' }}
+            style={{ height: '32px' }}
             value={selectedTier}
             disabled={availableTiers.length === 0}
             onChange={e => setSelectedTier(parseInt(e.target.value, 10))}
@@ -254,9 +249,6 @@ export const ConfigureRepo: React.FC<ConfigureRepoProps> = ({
                   repoName: repository.name,
                 })}
                 variant="secondary"
-                onClick={() => {
-                  track('Import repository - Configure - Open readonly');
-                }}
                 autoWidth
               >
                 Open readonly

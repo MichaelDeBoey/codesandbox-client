@@ -75,9 +75,6 @@ export const ForkRepo: React.FC<ForkRepoProps> = ({
     }
 
     setIsImporting(true);
-    track('Import repository - Fork - Click fork', {
-      vmTier: selectedTier,
-    });
 
     const result = await dashboard.forkGitHubRepository({
       source: { owner: repository.owner.login, name: repository.name },
@@ -93,7 +90,9 @@ export const ForkRepo: React.FC<ForkRepoProps> = ({
     });
 
     if (result.success) {
-      track('Import repository - Fork - Fork successful');
+      track('Import repository - Fork - Fork successful', {
+        vmTier: selectedTier,
+      });
 
       window.location.href = v2BranchUrl({
         workspaceId: activeTeamInfo?.id,
@@ -152,7 +151,6 @@ export const ForkRepo: React.FC<ForkRepoProps> = ({
                 options={githubAccounts.all}
                 value={selectedOrg}
                 onChange={(account: string) => {
-                  track('Import repository - Fork - Change GH Org');
                   setSelectedOrg(account);
                 }}
                 variant="secondary"
@@ -222,7 +220,7 @@ export const ForkRepo: React.FC<ForkRepoProps> = ({
           </Text>
 
           <Select
-            css={{ height: '32px' }}
+            style={{ height: '32px' }}
             value={selectedTier}
             disabled
             onChange={e => setSelectedTier(parseInt(e.target.value, 10))}
@@ -255,9 +253,6 @@ export const ForkRepo: React.FC<ForkRepoProps> = ({
                   repoName: repository.name,
                 })}
                 variant="secondary"
-                onClick={() => {
-                  track('Import repository - Configure - Open readonly');
-                }}
                 autoWidth
               >
                 Open readonly

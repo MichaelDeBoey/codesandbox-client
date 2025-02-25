@@ -1,9 +1,9 @@
 export type WorkspaceSetupStep =
   | 'create'
   | 'select-workspace'
+  | 'usecases'
   | 'plans'
   | 'addons'
-  | 'change-addons-confirmation'
   | 'spending-limit'
   | 'finalize';
 

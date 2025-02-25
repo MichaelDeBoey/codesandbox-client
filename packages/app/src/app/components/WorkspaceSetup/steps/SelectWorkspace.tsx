@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Stack } from '@codesandbox/components';
 import { useActions, useAppState } from 'app/overmind';
-import {
-  SubscriptionPaymentProvider,
-  SubscriptionStatus,
-  TeamMemberAuthorization,
-} from 'app/graphql/types';
+import { SubscriptionStatus, TeamMemberAuthorization } from 'app/graphql/types';
 import { useURLSearchParams } from 'app/hooks/useURLSearchParams';
 import { InputSelect } from 'app/components/dashboard/InputSelect';
 import { useHistory } from 'react-router-dom';
@@ -27,17 +23,13 @@ export const SelectWorkspace: React.FC<StepProps> = ({
 
   const workspacesEligibleForUpgrade = dashboard.teams
     .filter(t =>
-      // Only teams where you are admin
+      // Only teams where you are billing manager or admin
       t.userAuthorizations.find(
         ua =>
           ua.userId === user?.id &&
-          ua.authorization === TeamMemberAuthorization.Admin
+          (ua.teamManager === true ||
+            ua.authorization === TeamMemberAuthorization.Admin)
       )
-    )
-    .filter(
-      // Filter out paddle teams (legacy)
-      t =>
-        t.subscription?.paymentProvider !== SubscriptionPaymentProvider.Paddle
     )
     .filter(
       // Filter out teams that are on ubb pro already

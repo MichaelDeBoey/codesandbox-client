@@ -12,7 +12,6 @@ export const sandboxFragmentDashboard = gql`
     removedAt
     privacy
     isFrozen
-    isSse
     screenshotUrl
     screenshotOutdated
     viewCount
@@ -38,9 +37,13 @@ export const sandboxFragmentDashboard = gql`
 
     collection {
       path
+      id
     }
 
     authorId
+    author {
+      username
+    }
     teamId
 
     permissions {
@@ -119,11 +122,9 @@ export const teamFragmentDashboard = gql`
   fragment teamFragmentDashboard on Team {
     id
     name
-    type
     description
     creatorId
     avatarUrl
-    legacy
     frozen
     insertedAt
     settings {
@@ -160,6 +161,16 @@ export const teamFragmentDashboard = gql`
     featureFlags {
       ubbBeta
       friendOfCsb
+    }
+
+    limits {
+      includedPublicSandboxes
+      includedPrivateSandboxes
+    }
+
+    usage {
+      publicSandboxesQuantity
+      privateSandboxesQuantity
     }
   }
 `;
@@ -228,6 +239,7 @@ export const currentTeamInfoFragment = gql`
     }
 
     subscriptionSchedule {
+      billingInterval
       current {
         items {
           name
@@ -238,7 +250,6 @@ export const currentTeamInfoFragment = gql`
         startDate
         endDate
       }
-
       upcoming {
         items {
           name
@@ -253,20 +264,26 @@ export const currentTeamInfoFragment = gql`
 
     limits {
       includedCredits
-      includedSandboxes
-      includedDrafts
       includedVmTier
       onDemandCreditLimit
+      includedPublicSandboxes
+      includedPrivateSandboxes
     }
 
     usage {
       sandboxes
       credits
+      publicSandboxesQuantity
+      privateSandboxesQuantity
     }
 
     featureFlags {
       ubbBeta
       friendOfCsb
+    }
+
+    metadata {
+      useCases
     }
   }
 `;
@@ -277,6 +294,35 @@ export const branchFragment = gql`
     name
     contribution
     lastAccessedAt
+    upstream
+    owner {
+      username
+    }
+    project {
+      repository {
+        ... on GitHubRepository {
+          defaultBranch
+          name
+          owner
+          private
+        }
+      }
+      team {
+        id
+      }
+    }
+  }
+`;
+
+export const branchWithPRFragment = gql`
+  fragment branchWithPR on Branch {
+    id
+    name
+    contribution
+    lastAccessedAt
+    owner {
+      username
+    }
     upstream
     project {
       repository {
@@ -290,6 +336,12 @@ export const branchFragment = gql`
       team {
         id
       }
+    }
+    pullRequests {
+      title
+      number
+      additions
+      deletions
     }
   }
 `;
@@ -317,7 +369,7 @@ export const projectWithBranchesFragment = gql`
   fragment projectWithBranches on Project {
     appInstalled
     branches {
-      ...branch
+      ...branchWithPR
     }
     repository {
       ... on GitHubRepository {
@@ -331,7 +383,7 @@ export const projectWithBranchesFragment = gql`
       id
     }
   }
-  ${branchFragment}
+  ${branchWithPRFragment}
 `;
 
 export const githubRepoFragment = gql`

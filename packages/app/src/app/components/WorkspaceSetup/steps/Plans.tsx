@@ -16,11 +16,13 @@ import { useActions, useAppState, useEffects } from 'app/overmind';
 import { VMTier } from 'app/overmind/effects/api/types';
 import { useWorkspaceSubscription } from 'app/hooks/useWorkspaceSubscription';
 import { PricingPlan } from 'app/overmind/namespaces/checkout/types';
+import { SubscriptionInterval } from 'app/graphql/types';
 import { StepProps } from '../types';
 import { StepHeader } from '../StepHeader';
 import { AnimatedStep } from '../elements';
 import { FAQ } from './FAQ';
 import {
+  BUILDER_FEATURES,
   ENTERPRISE_FEATURES,
   FREE_FEATURES,
   PRO_FEATURES,
@@ -37,31 +39,47 @@ export const Plans: React.FC<StepProps> = ({
   flow,
 }) => {
   const { getQueryParam } = useURLSearchParams();
-  const { activeTeam, checkout } = useAppState();
+  const { activeTeam, checkout, dashboard } = useAppState();
 
   const actions = useActions();
   const effects = useEffects();
   const urlWorkspaceId = getQueryParam('workspace');
   const [tiers, setTiers] = useState<VMTier[]>([]);
-  const { isFree } = useWorkspaceSubscription();
+  const { isFree, proPlanType } = useWorkspaceSubscription();
+
+  const planDisplayName = proPlanType === 'flex' ? 'Pro' : 'Builder';
   const showFreePlan = isFree;
+  const workspaceName = dashboard.teams.find(t => t.id === urlWorkspaceId)
+    ?.name;
+  const headerSuffix = workspaceName ? `for ${workspaceName}` : '';
+  const [billingInterval, setBillingInterval] = useState(
+    SubscriptionInterval.Monthly
+  );
 
   const {
     availableBasePlans: {
       enterprise: enterprisePlan,
       flex: proPlan,
-      'flex-annual': proAnnualPlan,
+      builder: builderPlan,
       free: freePlan,
     },
-    newSubscription,
   } = checkout;
-
-  const annualPlan = newSubscription?.basePlan.id === 'flex-annual';
-  const currentProPlan = annualPlan ? proAnnualPlan : proPlan;
 
   // For new workspaces
   const freeButtonCTA =
     flow === 'create-workspace' ? 'Get started for free' : 'Continue on Free';
+
+  const proButtonCTA = isFree
+    ? 'Start your Pro plan'
+    : proPlanType === 'flex'
+    ? 'Continue on Pro'
+    : 'Downgrade to Pro';
+
+  const builderButtonCTA = isFree
+    ? 'Start your Builder plan'
+    : proPlanType === 'builder'
+    ? 'Continue on Builder'
+    : 'Upgrade to Builder';
 
   useEffect(() => {
     actions.checkout.fetchPrices();
@@ -75,8 +93,17 @@ export const Plans: React.FC<StepProps> = ({
   }, [urlWorkspaceId, activeTeam, actions]);
 
   const handleProPlanSelection = async () => {
-    actions.checkout.selectPlan(annualPlan ? 'flex-annual' : 'flex');
+    actions.checkout.selectPlan({ plan: proPlan.id, billingInterval });
     track('Checkout - Select Pro Plan', {
+      from: flow,
+      currentPlan: isFree ? 'free' : 'pro',
+    });
+    onNextStep();
+  };
+
+  const handleBuilderPlanSelection = async () => {
+    actions.checkout.selectPlan({ plan: builderPlan.id, billingInterval });
+    track('Checkout - Select Builder Plan', {
       from: flow,
       currentPlan: isFree ? 'free' : 'pro',
     });
@@ -88,29 +115,43 @@ export const Plans: React.FC<StepProps> = ({
       <Stack
         direction="vertical"
         gap={64}
-        css={{ maxWidth: '1188px', margin: 'auto', paddingBottom: 120 }}
+        css={{
+          maxWidth: isFree ? '1368px' : '1026px',
+          margin: 'auto',
+          paddingBottom: 120,
+        }}
       >
         <StepHeader
           onPrevStep={onPrevStep}
           onDismiss={onDismiss}
           currentStep={currentStep}
           numberOfSteps={numberOfSteps}
-          title="Choose a plan"
-          workspaceId={urlWorkspaceId}
+          title={`Choose a plan ${headerSuffix}`}
+          headerNote={
+            <>
+              Your workspace is currently on the{' '}
+              <Text color="#fff">{proPlanType ? planDisplayName : 'Free'}</Text>{' '}
+              plan.
+            </>
+          }
         />
 
         <Stack gap={4} direction="vertical">
           <Stack css={{ justifyContent: 'center' }}>
             <RecurringType
-              current={annualPlan ? 'annual' : 'monthly'}
-              onChangeValue={() =>
-                actions.checkout.selectPlan(annualPlan ? 'flex' : 'flex-annual')
-              }
+              current={billingInterval}
+              onChangeValue={interval => {
+                setBillingInterval(interval);
+                actions.checkout.selectPlan({
+                  plan: proPlan.id,
+                  billingInterval: interval,
+                });
+              }}
             />
           </Stack>
 
           <HorizontalScroller css={{ width: '100%' }}>
-            <Stack gap={6}>
+            <Stack gap={4}>
               {showFreePlan && (
                 <StyledCard
                   direction="vertical"
@@ -156,6 +197,7 @@ export const Plans: React.FC<StepProps> = ({
                     heading="Features"
                     secondaryColor="#a6a6a6"
                     features={freePlan.features}
+                    includeTooltips
                   />
                 </StyledCard>
               )}
@@ -166,12 +208,12 @@ export const Plans: React.FC<StepProps> = ({
                 css={{ borderColor: '#9581FF' }}
               >
                 <Text size={7} fontFamily="everett" weight="medium">
-                  {currentProPlan.name}
+                  {proPlan.name}
                 </Text>
                 <CardHeading>
                   Pay as you go with a monthly subscription
                 </CardHeading>
-                <PlanPricing plan={currentProPlan} />
+                <PlanPricing plan={proPlan} interval={billingInterval} />
                 <Button
                   variant="dark"
                   css={{
@@ -181,21 +223,52 @@ export const Plans: React.FC<StepProps> = ({
                   size="large"
                   onClick={handleProPlanSelection}
                 >
-                  Build your Pro plan
+                  {proButtonCTA}
                 </Button>
                 <PlanFeatures
                   heading="Usage"
-                  features={currentProPlan.usage}
+                  features={proPlan.usage}
                   includeTooltips
                 />
                 <PlanFeatures
                   heading="Features"
-                  features={currentProPlan.features}
+                  features={proPlan.features}
+                  includeTooltips
+                />
+              </StyledCard>
+              <StyledCard
+                direction="vertical"
+                align="center"
+                gap={8}
+                css={{ borderColor: '#6BAAF7' }}
+              >
+                <Text size={7} fontFamily="everett" weight="medium">
+                  {builderPlan.name}
+                </Text>
+                <CardHeading>
+                  Use CodeSandbox SDK with higher limits
+                </CardHeading>
+                <PlanPricing plan={builderPlan} interval={billingInterval} />
+                <Button
+                  variant="dark"
+                  css={{
+                    background: '#6BAAF7',
+                    '&:hover': { background: '#7B61FF' },
+                  }}
+                  size="large"
+                  onClick={handleBuilderPlanSelection}
+                >
+                  {builderButtonCTA}
+                </Button>
+                <PlanFeatures
+                  heading="Usage"
+                  features={builderPlan.usage}
+                  includeTooltips
                 />
                 <PlanFeatures
-                  itemIcon="plus"
-                  heading="Add-ons"
-                  features={['More VM credits']}
+                  heading="Features"
+                  features={builderPlan.features}
+                  includeTooltips
                 />
               </StyledCard>
               <StyledCard
@@ -210,7 +283,7 @@ export const Plans: React.FC<StepProps> = ({
                   {enterprisePlan.name}
                 </Text>
                 <CardHeading>
-                  The future of Cloud Development Environments
+                  Cloud development & code execution at scale
                 </CardHeading>
                 <PlanPricing plan={enterprisePlan} overridePrice="Custom" />
                 <Button
@@ -231,7 +304,10 @@ export const Plans: React.FC<StepProps> = ({
                 </Button>
                 <Stack direction="vertical" gap={4}>
                   <Text>Everything in Pro, plus:</Text>
-                  <PlanFeatures features={enterprisePlan.features} />
+                  <PlanFeatures
+                    features={enterprisePlan.features}
+                    includeTooltips
+                  />
                 </Stack>
               </StyledCard>
             </Stack>
@@ -239,7 +315,12 @@ export const Plans: React.FC<StepProps> = ({
           <CodeSandboxFriendsCard />
         </Stack>
         <FeaturesComparison
-          plans={[FREE_FEATURES, PRO_FEATURES, ENTERPRISE_FEATURES]}
+          plans={[
+            FREE_FEATURES,
+            PRO_FEATURES,
+            BUILDER_FEATURES,
+            ENTERPRISE_FEATURES,
+          ]}
         />
         <VMSpecs tiers={tiers} />
 
@@ -256,7 +337,7 @@ const StyledCard = styled(Stack)`
   padding: 40px 32px;
   border-radius: 8px;
   flex-shrink: 0;
-  width: 380px;
+  width: 330px;
 
   @media (max-width: 1400px) {
     padding: 40px 20px;
@@ -269,7 +350,7 @@ const CardHeading = styled(Text)`
 `;
 
 const GridCell = styled(Stack)`
-  padding: 24px 16px;
+  padding: 16px 8px;
   max-height: 80px;
   width: 100%;
   min-width: 160px;
@@ -307,11 +388,12 @@ const HorizontalScroller = styled(Element)`
   }
 `;
 
-const PlanPricing: React.FC<{ plan: PricingPlan; overridePrice?: string }> = ({
-  plan,
-  overridePrice,
-}) => {
-  const isPro = plan.id === 'flex';
+const PlanPricing: React.FC<{
+  plan: PricingPlan;
+  interval?: SubscriptionInterval;
+  overridePrice?: string;
+}> = ({ plan, interval = SubscriptionInterval.Monthly, overridePrice }) => {
+  const isPro = plan.id === 'flex' || plan.id === 'builder';
 
   return (
     <Stack direction="vertical" align="center" gap={2}>
@@ -326,7 +408,12 @@ const PlanPricing: React.FC<{ plan: PricingPlan; overridePrice?: string }> = ({
       </Stack>
       <Element css={{ position: 'relative' }}>
         <Text size={9} fontFamily="everett" weight="medium">
-          {overridePrice || `$${plan.price}`}
+          {overridePrice ||
+            `$${
+              interval === SubscriptionInterval.Monthly
+                ? plan.priceMonthly
+                : plan.priceYearly / 12
+            }`}
         </Text>
       </Element>
 
@@ -339,7 +426,9 @@ const PlanPricing: React.FC<{ plan: PricingPlan; overridePrice?: string }> = ({
           weight="medium"
           css={{ textWrap: 'balance', width: 180 }}
         >
-          {plan.recurringTypeDescription}
+          {interval === SubscriptionInterval.Monthly
+            ? 'per month per workspace'
+            : 'per workspace per month billed annually'}
         </Text>
       )}
     </Stack>
@@ -388,12 +477,17 @@ const PlanFeatures: React.FC<{
 export const EXPLAINED_FEATURES: Record<string, string> = {
   'VM credits':
     'Credits measure VM runtime and apply to Devboxes and Repositories.',
+  'VM credit':
+    'Credits measure VM runtime and apply to Devboxes and Repositories.',
   Devboxes:
     'Devboxes are our Cloud Development Environment, which runs in virtual machines and requires VM credits.',
   Sandboxes:
     "Sandboxes are powered by your browser and don't require credits to run.",
-  'personal drafts':
-    'Personal drafts are Sandbox drafts that are not shareable or embeddable.',
+  'concurrent VMs':
+    'Maximum number of VMs you can run simultaneously with CodeSandbox SDK.',
+  'CodeSandbox SDK lite':
+    'Programmatically create and manage Devboxes at scale, but limited to 10 concurrent Devboxes.',
+  'CodeSandbox SDK': 'Programmatically create and manage Devboxes at scale.',
 };
 
 const TextWithTooltips = ({ text }: { text: string }) => {
@@ -569,8 +663,8 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
       <Element
         css={{
           display: 'grid',
-          gridTemplateColumns: `repeat(4, 1fr)`,
-          '& > *:not(:nth-child(-n+4))': {
+          gridTemplateColumns: `repeat(5, 1fr)`,
+          '& > *:not(:nth-child(-n+5))': {
             borderTop: '1px solid #252525',
           },
           borderBottom: '1px solid #252525',
@@ -589,6 +683,11 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
         </GridCell>
         <GridCell>
           <Text weight="medium" size={5}>
+            Builder
+          </Text>
+        </GridCell>
+        <GridCell>
+          <Text weight="medium" size={5}>
             Enterprise
           </Text>
         </GridCell>
@@ -598,12 +697,6 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
           description="The maximum number of members in the workspace."
           plans={plans}
           property="members"
-        />
-        <FeatureComparisonNumbersRow
-          title="Storage"
-          description="The maximum amount of storage space available."
-          plans={plans}
-          property="storage"
         />
         <FeatureComparisonNumbersRow
           title="Sandboxes"
@@ -623,12 +716,6 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
           property="sandboxes"
         />
         <FeatureComparisonNumbersRow
-          title="Personal drafts"
-          description="The maximum number of Sandbox drafts (not shareable or embeddable) per workspace user."
-          plans={plans}
-          property="drafts"
-        />
-        <FeatureComparisonNumbersRow
           title="Devboxes"
           description={
             <>
@@ -637,7 +724,7 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
               <a
                 target="_blank"
                 rel="noreferrer"
-                href="https://codesandbox.io/docs/learn/devboxes/editors?tab=devbox"
+                href="https://codesandbox.io/docs/learn/devboxes/overview?tab=devbox#difference-between-devboxes--sandboxes"
               >
                 Learn more about Devboxes.
               </a>
@@ -645,6 +732,24 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
           }
           plans={plans}
           property="devboxes"
+        />
+        <FeatureComparisonBooleanRow
+          title="CodeSandbox SDK"
+          description="Programmatically create and manage Devboxes at scale."
+          plans={plans}
+          property="sdk"
+        />
+        <FeatureComparisonNumbersRow
+          title="Concurrent Devboxes"
+          description="The maximum number of concurrently running Devboxes for CodeSandbox SDK."
+          plans={plans}
+          property="concurrentDevboxes"
+        />
+        <FeatureComparisonNumbersRow
+          title="Session Length"
+          description="How long you can run your Sandboxes and Devboxes for."
+          plans={plans}
+          property="sessionLength"
         />
         <FeatureComparisonNumbersRow
           title="Repositories"
@@ -665,35 +770,12 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
           property="privateProject"
         />
         <FeatureComparisonBooleanRow
-          title="Shareable links"
-          description="Share your devboxes and sandboxes with users outside of your workspace."
-          plans={plans}
-          property="shareableLinks"
-        />
-        <FeatureComparisonBooleanRow
           title="Live sessions"
           description="Collaborate with others on your devboxes and repositories."
           plans={plans}
           property="liveSessions"
         />
-        <FeatureComparisonBooleanRow
-          title="API access"
-          description="Automatically create, share and delete sandboxes and branches."
-          plans={plans}
-          property="apiAccess"
-        />
-        <FeatureComparisonBooleanRow
-          title="Instant environment resume"
-          description="Load an existing Devbox in seconds without having to rebuild all assets."
-          plans={plans}
-          property="instantEnvironmentResume"
-        />
-        <FeatureComparisonBooleanRow
-          title="Instant environment share"
-          description="Share your Devbox with the same VM and settings with your team in seconds."
-          plans={plans}
-          property="instantEnvironmentShare"
-        />
+
         <FeatureComparisonBooleanRow
           title="Private NPM"
           description="Use private npm packages from your own custom registry."
@@ -702,16 +784,16 @@ const FeaturesComparison: React.FC<{ plans: PricingPlanFeatures[] }> = ({
         />
 
         <FeatureComparisonBooleanRow
-          title="Protected previews"
-          description="Protect who can view your dev server preview. (Coming soon)."
-          plans={plans}
-          property="protectedPreviews"
-        />
-        <FeatureComparisonBooleanRow
           title="SSO"
           description="Single Sign-On support for Okta and more."
           plans={plans}
           property="sso"
+        />
+        <FeatureComparisonBooleanRow
+          title="SOC 2 compliance"
+          description="Ensure the security of your data with our SOC 2 Type II compliance."
+          plans={plans}
+          property="soc2"
         />
 
         <FeatureComparisonBooleanRow
@@ -747,7 +829,7 @@ const FeatureComparisonNumbersRow: React.FC<FeatureComparisonRowProps> = ({
 }) => (
   <>
     <GridCellDetails css={{ alignItems: 'flex-start' }}>
-      <Text weight="medium" size={5}>
+      <Text weight="medium" size={4}>
         {title}
       </Text>
       <Text
@@ -800,7 +882,15 @@ const FeatureComparisonBooleanRow: React.FC<FeatureComparisonRowProps> = ({
   </>
 );
 
-const RecurringType = ({ current, onChangeValue }) => {
+type RecurringTypeProps = {
+  current: SubscriptionInterval;
+  onChangeValue: (value: SubscriptionInterval) => void;
+};
+
+const RecurringType: React.FC<RecurringTypeProps> = ({
+  current,
+  onChangeValue,
+}) => {
   return (
     <Stack
       css={{
@@ -812,15 +902,15 @@ const RecurringType = ({ current, onChangeValue }) => {
     >
       <RecurringTypeButton
         type="button"
-        data-active={current === 'annual'}
-        onClick={() => onChangeValue('annual')}
+        data-active={current === SubscriptionInterval.Yearly}
+        onClick={() => onChangeValue(SubscriptionInterval.Yearly)}
       >
         <Text>Annual (Save 30%)</Text>
       </RecurringTypeButton>
       <RecurringTypeButton
         type="button"
-        data-active={current === 'monthly'}
-        onClick={() => onChangeValue('monthly')}
+        data-active={current === SubscriptionInterval.Monthly}
+        onClick={() => onChangeValue(SubscriptionInterval.Monthly)}
       >
         <Text>Monthly</Text>
       </RecurringTypeButton>

@@ -13,11 +13,7 @@ import { ErrorBoundary } from './common/ErrorBoundary';
 import { Modals } from './common/Modals';
 import { DevAuthPage } from './DevAuth';
 import { StandalonePage } from './Standalone';
-import {
-  CreateWorkspace,
-  UpgradeWorkspace,
-  ManageAddons,
-} from './WorkspaceFlows';
+import { CreateWorkspace, UpgradeWorkspace } from './WorkspaceFlows';
 import { Container, Content } from './elements';
 import { Dashboard } from './Dashboard';
 import { Sandbox } from './Sandbox';
@@ -52,14 +48,6 @@ const SignOut = Loadable(() =>
   import(/* webpackChunkName: 'page-sign-out' */ './SignOut').then(module => ({
     default: module.SignOut,
   }))
-);
-const Live = Loadable(() =>
-  import(/* webpackChunkName: 'page-sign-in' */ './Live').then(module => ({
-    default: module.Live,
-  }))
-);
-const VercelSignIn = Loadable(
-  () => import(/* webpackChunkName: 'page-vercel' */ './VercelAuth')
 );
 const PreviewAuth = Loadable(
   () => import(/* webpackChunkName: 'page-vercel' */ './PreviewAuth')
@@ -188,12 +176,11 @@ const RoutesComponent: React.FC = () => {
               path="/new"
               component={() => <Sandbox showModalOnTop="new" />}
             />
+            <Route path="/s/:id*" component={Sandbox} />
             <Route path="/invite/:token" component={TeamInvitation} />
 
             <Route path="/phew" component={Phew} />
             <Route path="/dashboard" component={Dashboard} />
-            <Route path="/s/:id*" component={Sandbox} />
-            <Route path="/live/:roomId" component={Live} />
             <Route path="/signin" exact component={SignIn} />
             <Route path="/signout" exact component={SignOut} />
             <Route path="/signin/duplicate" component={DuplicateAccount} />
@@ -206,7 +193,6 @@ const RoutesComponent: React.FC = () => {
             <Route path="/cli/login" component={CLI} />
             <Route path="/client/login" component={MobileAuth} />
             <Route path="/vscode/login" component={VSCodeAuth} />
-            <Route path="/auth/zeit" component={VercelSignIn} />
             <Route path="/auth/sandbox/:id" component={PreviewAuth} />
             <Route path="/auth/sandpack/:teamId" component={SandpackSecret} />
             {(process.env.LOCAL_SERVER || process.env.STAGING) && (
@@ -216,7 +202,7 @@ const RoutesComponent: React.FC = () => {
             <Route path="/standalone/:componentId" component={StandalonePage} />
             <Route path="/create-workspace" component={CreateWorkspace} />
             <Route path="/upgrade" component={UpgradeWorkspace} />
-            <Route path="/manage-addons" component={ManageAddons} />
+            <Route path="/manage-subscription" component={UpgradeWorkspace} />
 
             {environment.isOnPrem ? (
               <Redirect from="/pro" to="/dashboard" />

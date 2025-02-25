@@ -9,9 +9,16 @@ import {
   RepoFragmentDashboardFragment,
   ProjectFragment,
 } from 'app/graphql/types';
-import { v2BranchUrl } from '@codesandbox/common/lib/utils/url-generator';
+import {
+  sandboxUrl,
+  v2BranchUrl,
+  vsCodeLauncherUrl,
+  vsCodeUrl,
+} from '@codesandbox/common/lib/utils/url-generator';
+import { ForkSandboxBody } from '@codesandbox/common/lib/types';
 import { notificationState } from '@codesandbox/common/lib/utils/notifications';
 import { NotificationStatus } from '@codesandbox/notifications';
+import { PrivacyLevel } from 'app/components/Create/utils/types';
 import {
   getDecoratedCollection,
   getProjectUniqueKey,
@@ -707,6 +714,7 @@ export const recoverSandboxes = async (
       // only way to pass, null is a value in the BE
       // @ts-ignore
       teamId: state.activeTeam || undefined,
+      privacy: null,
     });
   } catch (error) {
     state.dashboard.sandboxes.DELETED = [...oldDeleted];
@@ -809,11 +817,13 @@ export const addSandboxesToFolder = async (
     collectionPath,
     teamId = state.activeTeam,
     deleteFromCurrentPath = true,
+    privacy,
   }: {
     sandboxIds: string[];
     collectionPath: string | null;
     teamId?: string | null;
     deleteFromCurrentPath?: boolean;
+    privacy: PrivacyLevel | null;
   }
 ) => {
   effects.analytics.track('Dashboard - Moved Sandboxes', {
@@ -838,6 +848,7 @@ export const addSandboxesToFolder = async (
       sandboxIds,
       collectionPath,
       teamId,
+      privacy,
     });
 
     if (deleteFromCurrentPath) {
@@ -854,16 +865,19 @@ export const addSandboxesToFolder = async (
     // Re-fetch team to get updated usage data
     actions.getActiveTeamInfo();
 
-    effects.notificationToast.success(
-      'Successfully moved to ' +
-        (collectionPath === '/'
-          ? "'All sandboxes and devboxes'"
-          : collectionPath)
-    );
+    let path = collectionPath;
+
+    if (collectionPath === '/') {
+      path = 'All sandboxes and devboxes';
+    } else if (collectionPath === undefined) {
+      path = 'Drafts';
+    }
+
+    effects.notificationToast.success('Successfully moved to ' + path);
   } catch (e) {
     if (e.message.includes('SANDBOX_LIMIT')) {
       effects.notificationToast.error(
-        'You reached the maximum amount of shareable Sandboxes in this workspace. Upgrade your plan to add more.'
+        'You have reached the maximum of 5 private Sandboxes in this workspace. Upgrade your plan to add more.'
       );
     } else {
       effects.notificationToast.error(
@@ -1028,6 +1042,9 @@ export const changeSandboxesPrivacy = async (
       error,
     });
   }
+
+  await actions.getActiveTeamInfo();
+  await actions.dashboard.getTeams();
 };
 
 export const deleteWorkspace = async ({ actions, effects, state }: Context) => {
@@ -1707,4 +1724,85 @@ export const convertToDevbox = async (
 
   // Re-fetch team to get updated usage data
   actions.getActiveTeamInfo();
+};
+
+export const forkSandbox = async (
+  { effects, state, actions }: Context,
+  {
+    sandboxId,
+    openInNewWindow,
+    openInVSCode,
+    autoLaunchVSCode,
+    customVMTier,
+    body,
+    redirectAfterFork,
+  }: {
+    sandboxId: string;
+    openInNewWindow?: boolean;
+    openInVSCode?: boolean;
+    autoLaunchVSCode?: boolean;
+    customVMTier?: number;
+    redirectAfterFork?: boolean;
+    body?: {
+      collectionId?: string;
+      alias?: string;
+      v2?: boolean;
+      title?: string;
+      privacy?: 0 | 1 | 2;
+    };
+  }
+) => {
+  effects.analytics.track('Fork Sandbox', { type: 'external', sandboxId });
+
+  const usedBody: ForkSandboxBody = body || {};
+
+  if (state.activeTeam) {
+    usedBody.teamId = state.activeTeam;
+  }
+
+  try {
+    const forkedSandbox = await effects.api.forkSandbox(sandboxId, usedBody);
+
+    if (customVMTier) {
+      await effects.api.setVMSpecs(forkedSandbox.id, customVMTier);
+    }
+
+    if (openInVSCode) {
+      if (autoLaunchVSCode) {
+        window.open(vsCodeUrl(forkedSandbox.id));
+      } else {
+        window.open(vsCodeLauncherUrl(forkedSandbox.id));
+      }
+    }
+
+    if (redirectAfterFork) {
+      const url = sandboxUrl({ id: forkedSandbox.id, isV2: forkedSandbox.v2 });
+
+      if (openInNewWindow) {
+        window.open(url, '_blank');
+      } else {
+        window.location.href = url;
+      }
+    }
+
+    return forkedSandbox;
+  } catch (error) {
+    const errorMessage = actions.internal.getErrorMessage({ error });
+
+    if (errorMessage.includes('DRAFT_LIMIT')) {
+      effects.notificationToast.add({
+        title: 'Cannot create draft',
+        message:
+          'Your drafts folder is full. Delete unneeded drafts, or upgrade to Pro for unlimited drafts.',
+        status: NotificationStatus.ERROR,
+      });
+    } else {
+      actions.internal.handleError({
+        message: 'We were unable to fork the sandbox',
+        error,
+      });
+    }
+  }
+
+  return undefined;
 };

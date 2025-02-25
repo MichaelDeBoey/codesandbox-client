@@ -1,5 +1,4 @@
 import { v2BranchUrl } from '@codesandbox/common/lib/utils/url-generator';
-import { trackImprovedDashboardEvent } from '@codesandbox/common/lib/utils/analytics';
 import { useAppState } from 'app/overmind';
 import { PageTypes } from 'app/overmind/namespaces/dashboard/types';
 import React from 'react';
@@ -9,13 +8,6 @@ import { DashboardBranch } from '../../types';
 import { useSelection } from '../Selection';
 import { BranchCard } from './BranchCard';
 import { BranchListItem } from './BranchListItem';
-
-const MAP_BRANCH_EVENT_TO_PAGE_TYPE: Partial<Record<PageTypes, string>> = {
-  'my-contributions':
-    'Dashboard - Open Contribution Branch from My Contributions',
-  repositories: 'Dashboard - Open Branch from Repository',
-  recent: 'Dashboard - Open Branch from Recent',
-};
 
 type BranchProps = DashboardBranch & {
   page: PageTypes;
@@ -31,6 +23,10 @@ export const Branch: React.FC<BranchProps> = ({ branch, page }) => {
     viewMode = 'grid';
   }
 
+  if (page === 'repository-branches') {
+    viewMode = 'list';
+  }
+
   const branchUrl = v2BranchUrl({
     owner: project.repository.owner,
     repoName: project.repository.name,
@@ -43,10 +39,6 @@ export const Branch: React.FC<BranchProps> = ({ branch, page }) => {
 
     if (event.type === 'contextmenu') onRightClick(event, branch.id);
     else onMenuEvent(event, branch.id);
-  };
-
-  const handleClick = () => {
-    trackImprovedDashboardEvent(MAP_BRANCH_EVENT_TO_PAGE_TYPE[page]);
   };
 
   const isParentRepositoryBeingRemoved =
@@ -70,7 +62,6 @@ export const Branch: React.FC<BranchProps> = ({ branch, page }) => {
     isBeingRemoved:
       removingBranch?.id === branch.id || isParentRepositoryBeingRemoved,
     onContextMenu: handleContextMenu,
-    onClick: handleClick,
     showRepo: page !== 'repository-branches',
     lastAccessed,
     /**

@@ -81,9 +81,7 @@ export const Header = ({
         )}
         {repositoriesListPage && dashboard.viewMode === 'list' && (
           <Button
-            onClick={() =>
-              !readOnly && modalOpened({ modal: 'importRepository' })
-            }
+            onClick={() => !readOnly && modalOpened({ modal: 'import' })}
             variant="ghost"
             disabled={readOnly}
             autoWidth
@@ -98,30 +96,28 @@ export const Header = ({
           </Button>
         )}
 
-        {repositoryBranchesPage &&
-          dashboard.viewMode === 'list' &&
-          selectedRepo && (
-            <Button
-              onClick={() => {
-                dashboardActions.createDraftBranch({
-                  owner: selectedRepo.owner,
-                  name: selectedRepo.name,
-                  teamId: selectedRepo.assignedTeamId,
-                });
-              }}
-              variant="ghost"
-              disabled={readOnly}
-              autoWidth
-            >
-              <Icon
-                name="branch"
-                size={16}
-                title="Create branch"
-                css={{ marginRight: '8px' }}
-              />
-              Create branch
-            </Button>
-          )}
+        {repositoryBranchesPage && selectedRepo && (
+          <Button
+            onClick={() => {
+              dashboardActions.createDraftBranch({
+                owner: selectedRepo.owner,
+                name: selectedRepo.name,
+                teamId: selectedRepo.assignedTeamId,
+              });
+            }}
+            variant="ghost"
+            disabled={readOnly}
+            autoWidth
+          >
+            <Icon
+              name="branch"
+              size={16}
+              title="Create branch"
+              css={{ marginRight: '8px' }}
+            />
+            Create branch
+          </Button>
+        )}
 
         <Stack gap={1}>
           {showSortOptions && <SortOptions />}

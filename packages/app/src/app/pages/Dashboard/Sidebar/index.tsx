@@ -6,6 +6,7 @@ import { Element, List, Text, Stack } from '@codesandbox/components';
 import css from '@styled-system/css';
 import { useWorkspaceAuthorization } from 'app/hooks/useWorkspaceAuthorization';
 import { useWorkspaceSubscription } from 'app/hooks/useWorkspaceSubscription';
+import { useWorkspaceFeatureFlags } from 'app/hooks/useWorkspaceFeatureFlags';
 import { ContextMenu } from './ContextMenu';
 import { DashboardBaseFolder } from '../types';
 import { Position } from '../Components/Selection';
@@ -14,6 +15,7 @@ import { SidebarContext } from './utils';
 import { RowItem } from './RowItem';
 import { NestableRowItem } from './NestableRowItem';
 import { ExpandableReposRowItem } from './ExpandableReposRowItem';
+import { UsageProgress } from './UsageProgress';
 
 interface SidebarProps {
   visible: boolean;
@@ -76,8 +78,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const showRespositories = !state.environment.isOnPrem;
 
+  const { ubbBeta } = useWorkspaceFeatureFlags();
   const { isPrimarySpace, isTeamAdmin } = useWorkspaceAuthorization();
-  const { isFree } = useWorkspaceSubscription();
+  const { isFree, isPro } = useWorkspaceSubscription();
 
   const showTemplates = state.activeTeam
     ? state.sidebar[state.activeTeam]?.hasTemplates
@@ -85,6 +88,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const showSyncedSandboxes = state.activeTeam
     ? state.sidebar[state.activeTeam]?.hasSyncedSandboxes
     : false;
+
+  const getMaxCredits = () => {
+    let maxCredits = state.activeTeamInfo.limits?.includedCredits;
+    if (isPro) {
+      maxCredits += state.activeTeamInfo.limits?.onDemandCreditLimit;
+    }
+
+    return maxCredits;
+  };
 
   return (
     <SidebarContext.Provider value={{ onSidebarToggle, menuState }}>
@@ -141,10 +153,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             icon="people"
           />
           <RowItem
-            name="Usage"
-            page="external"
-            path={dashboardUrls.portalVMUsage(activeTeam)}
-            icon="coins"
+            name="Get started"
+            page="get-started"
+            path={dashboardUrls.getStarted(activeTeam)}
+            icon="documentation"
           />
           {isFree && isTeamAdmin && (
             <RowItem
@@ -247,8 +259,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             icon="sharing"
           />
         </List>
+        {ubbBeta && state.activeTeamInfo && (
+          <UsageProgress
+            workspaceId={activeTeam}
+            maxCredits={getMaxCredits()}
+            usedCredits={state.activeTeamInfo.usage?.credits}
+          />
+        )}
       </Stack>
-
       <AnimatePresence>
         {visible && (
           <Element

@@ -270,7 +270,7 @@ commands:
         default: '$DOCKER_PWD'
     steps:
       - setup_remote_docker:
-          version: 20.10.23
+          version: default
           docker_layer_caching: true
       - restore_cache: *restore_prod_result
       - run:
@@ -407,13 +407,13 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main
       - deploy-staging-approval:
           type: approval
           filters:
             branches:
               ignore:
-                - master
+                - main
       - deploy-to-staging:
           requires:
             - deploy-staging-approval
@@ -421,4 +421,4 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - main

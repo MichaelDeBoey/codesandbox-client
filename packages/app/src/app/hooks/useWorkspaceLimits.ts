@@ -18,15 +18,13 @@ export const useWorkspaceLimits = (): WorkspaceLimitsReturn => {
       isCloseToSpendingLimit: undefined,
       showUsageLimitBanner: undefined,
       isFrozen: undefined,
-      hasReachedSandboxLimit: undefined,
-      hasReachedDraftLimit: undefined,
       highestAllowedVMTier: undefined,
     };
   }
 
   const applyUbbRestrictions = !friendOfCsb && ubbBeta;
 
-  const { limits, usage, frozen, userAuthorizations } = activeTeamInfo;
+  const { limits, usage, frozen } = activeTeamInfo;
 
   const isOutOfCredits = applyUbbRestrictions && isFree === true && frozen;
   const isCloseToOutOfCredits =
@@ -44,16 +42,6 @@ export const useWorkspaceLimits = (): WorkspaceLimitsReturn => {
     usage.credits / (limits.includedCredits + onDemandCreditsLimit) >
       SPENDING_LIMIT_WARNING;
 
-  const hasReachedSandboxLimit =
-    applyUbbRestrictions && usage.sandboxes >= limits.includedSandboxes;
-
-  const userDrafts =
-    userAuthorizations.find(ua => ua.userId === user.id)?.drafts ?? 0;
-  const hasReachedDraftLimit =
-    applyUbbRestrictions &&
-    isFree === true &&
-    userDrafts >= limits.includedDrafts;
-
   const highestAllowedVMTier = limits.includedVmTier;
 
   return {
@@ -61,8 +49,6 @@ export const useWorkspaceLimits = (): WorkspaceLimitsReturn => {
     isCloseToOutOfCredits,
     isAtSpendingLimit,
     isCloseToSpendingLimit,
-    hasReachedSandboxLimit,
-    hasReachedDraftLimit,
     showUsageLimitBanner:
       isOutOfCredits ||
       isCloseToOutOfCredits ||
@@ -81,8 +67,6 @@ export type WorkspaceLimitsReturn =
       isCloseToSpendingLimit: undefined;
       showUsageLimitBanner: undefined;
       isFrozen: undefined;
-      hasReachedSandboxLimit: undefined;
-      hasReachedDraftLimit: undefined;
       highestAllowedVMTier: undefined;
     }
   | {
@@ -92,7 +76,5 @@ export type WorkspaceLimitsReturn =
       isCloseToSpendingLimit: boolean;
       showUsageLimitBanner: boolean;
       isFrozen: boolean;
-      hasReachedSandboxLimit: boolean;
-      hasReachedDraftLimit: boolean;
       highestAllowedVMTier: number;
     };

@@ -8,8 +8,6 @@ import {
 import React, { useEffect, useState } from 'react';
 import { useTabState } from 'reakit/Tab';
 
-import track from '@codesandbox/common/lib/utils/analytics';
-
 import { ModalContentProps } from 'app/pages/common/Modals';
 import { SignIn } from 'app/pages/SignIn/SignIn';
 import { useAppState, useEffects } from 'app/overmind';
@@ -36,6 +34,7 @@ import { ConfigureRepo } from './ImportRepository/steps/ConfigureRepo';
 import { FindByURL } from './ImportRepository/steps/FindByURL';
 import { StartFromTemplate } from './ImportRepository/steps/StartFromTemplate';
 import { ForkRepo } from './ImportRepository/steps/ForkRepo';
+import { ImportTemplate } from './ImportTemplate';
 
 type View = 'signin' | 'permissions' | 'select' | 'loading' | 'config';
 
@@ -105,12 +104,22 @@ export const ImportRepository: React.FC<
     }
   }, [preSelectedRepo, restrictsPublicRepos]);
 
-  const handleFetchFullGithubRepo = async (repo: {
-    owner: string;
-    name: string;
-  }) => {
+  const handleFetchFullGithubRepo = async (
+    repo: {
+      owner: string;
+      name: string;
+    },
+    options: { runInBackground: boolean } = { runInBackground: false }
+  ) => {
+    if (viewState === 'loading') {
+      return;
+    }
+
     try {
-      setViewState('loading');
+      if (!options.runInBackground) {
+        // Don't switch back to loading state when the repo is already fetched
+        setViewState('loading');
+      }
       const data = await effects.gql.queries.getGithubRepository({
         owner: repo.owner,
         name: repo.name,
@@ -127,12 +136,6 @@ export const ImportRepository: React.FC<
     setSelectedRepo(repo);
     setViewState('config');
     handleFetchFullGithubRepo({ owner: repo.owner.login, name: repo.name });
-  };
-
-  const trackTabClick = (tab: string) => {
-    track(`Import repository - Select - Click Tab`, {
-      tab_name: tab,
-    });
   };
 
   const forkMode = selectedRepo?.authorization === GithubRepoAuthorization.Read;
@@ -187,28 +190,20 @@ export const ImportRepository: React.FC<
                   }}
                 >
                   <Tabs {...tabState} aria-label="Create new">
-                    <Tab
-                      {...tabState}
-                      onClick={() => trackTabClick('search-in-org')}
-                      stopId="search-in-org"
-                    >
+                    <Tab {...tabState} stopId="search-in-org">
                       Search in organizations
                     </Tab>
 
-                    <Tab
-                      {...tabState}
-                      onClick={() => trackTabClick('find-by-url')}
-                      stopId="find-by-url"
-                    >
+                    <Tab {...tabState} stopId="find-by-url">
                       Find by URL
                     </Tab>
 
-                    <Tab
-                      {...tabState}
-                      onClick={() => trackTabClick('from-template')}
-                      stopId="from-template"
-                    >
+                    <Tab {...tabState} stopId="from-template">
                       Start from a template
+                    </Tab>
+
+                    <Tab {...tabState} stopId="import-template">
+                      Import template
                     </Tab>
                   </Tabs>
                   {restrictsPrivateRepos && <RestrictedPrivateReposInfo />}
@@ -227,6 +222,9 @@ export const ImportRepository: React.FC<
                 </Panel>
                 <Panel tab={tabState} id="from-template">
                   <StartFromTemplate />
+                </Panel>
+                <Panel tab={tabState} id="import-template">
+                  <ImportTemplate />
                 </Panel>
               </ModalContent>
             </>
@@ -251,7 +249,9 @@ export const ImportRepository: React.FC<
                 ) : (
                   <ConfigureRepo
                     repository={selectedRepo}
-                    onRefetchGithubRepo={handleFetchFullGithubRepo}
+                    onRefetchGithubRepo={repo =>
+                      handleFetchFullGithubRepo(repo, { runInBackground: true })
+                    }
                   />
                 )}
               </ModalContent>

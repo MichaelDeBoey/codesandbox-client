@@ -72,6 +72,7 @@ export const state: State = {
   currentSortDirection: 'desc',
   contextMenu: { sandboxId: null, sandboxType: null, position: null },
   collections: [],
+  showcasedSandbox: null,
   isProfileCurrentUser: derived(
     (currentState: State, rootState: Context['state']) =>
       Boolean(
@@ -83,14 +84,7 @@ export const state: State = {
       ? currentState.profiles[currentState.currentProfileId]
       : null
   ),
-  showcasedSandbox: derived(
-    (currentState: State, rootState: Context['state']) =>
-      currentState.current && currentState.current.showcasedSandboxShortid
-        ? rootState.editor.sandboxes[
-            currentState.current.showcasedSandboxShortid
-          ]
-        : null
-  ),
+
   currentLikedSandboxes: derived((currentState: State) =>
     currentState.current
       ? currentState.likedSandboxes[currentState.current.username]

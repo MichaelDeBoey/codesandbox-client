@@ -28,7 +28,9 @@ export const Addons: React.FC<StepProps> = ({
 
   const handleSubmit = () => {
     if (isPro) {
-      checkout.calculateConversionCharge({ workspaceId: urlWorkspaceId });
+      checkout.calculateLegacyToUBBConversionCharge({
+        workspaceId: urlWorkspaceId,
+      });
     }
 
     track('Checkout - Next from addons', {
@@ -53,7 +55,6 @@ export const Addons: React.FC<StepProps> = ({
               ? 'Update plan'
               : 'Choose your add-ons (optional)'
           }
-          workspaceId={urlWorkspaceId}
         />
 
         <Stack direction="vertical" gap={8}>
@@ -135,7 +136,7 @@ const CreditAddonButton = ({
           currentPlan: isPro ? 'pro' : 'free',
           addonId: addon.id,
         });
-        actions.checkout.addCreditsPackage(addon);
+        actions.checkout.addCreditsPackage(addon.id);
       }}
     >
       <Stack
@@ -163,7 +164,7 @@ const StyledPrice = ({ addon }: { addon: CreditAddon }) => (
           ${addon.fullPrice}
         </Text>
       )}{' '}
-      ${addon.price}
+      ${addon.priceMonthly}
     </Text>
     {addon.discount && (
       <Text size={2} color={addon.discount === 30 ? '#BDB1F6' : '#DCF76E'}>

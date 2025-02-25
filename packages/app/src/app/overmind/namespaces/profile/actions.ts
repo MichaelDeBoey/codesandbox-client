@@ -21,14 +21,11 @@ export const profileMounted = withLoadApp(
     state.profile.profiles[profile.id] = profile;
     state.profile.currentProfileId = profile.id;
 
-    if (
-      profile.showcasedSandboxShortid &&
-      !state.editor.sandboxes[profile.showcasedSandboxShortid]
-    ) {
+    if (profile.showcasedSandboxShortid) {
       try {
-        state.editor.sandboxes[
+        state.profile.showcasedSandbox = await effects.api.getSandbox(
           profile.showcasedSandboxShortid
-        ] = await effects.api.getSandbox(profile.showcasedSandboxShortid);
+        );
       } catch (e) {
         // Ignore it
       }
@@ -150,18 +147,12 @@ export const newSandboxShowcaseSelected = async (
     return;
   }
 
-  const [sandbox] = await Promise.all([
-    state.editor.sandboxes[id] ? null : effects.api.getSandbox(id),
-    effects.api.updateShowcasedSandbox(state.user.username, id),
-  ]);
-
-  if (sandbox) {
-    state.editor.sandboxes[id] = sandbox as Sandbox;
-  }
-
+  const sandbox = await effects.api.updateShowcasedSandbox(
+    state.user.username,
+    id
+  );
+  state.profile.showcasedSandbox = sandbox as Sandbox;
   state.profile.isLoadingProfile = false;
-
-  effects.analytics.track('Profile - Showcase Sandbox selected');
 };
 
 export const deleteSandboxClicked = ({ state }: Context, id: string) => {
@@ -359,8 +350,6 @@ export const addFeaturedSandboxes = async (
     );
 
     state.profile.current.featuredSandboxes = profile.featuredSandboxes;
-
-    effects.analytics.track('Profile - Sandbox pinned');
   } catch (error) {
     // rollback optimisic update
     actions.profile.removeFeaturedSandboxesInState({ sandboxId });
@@ -447,7 +436,6 @@ export const saveFeaturedSandboxesOrder = async ({
       featuredSandboxIds
     );
     state.profile.current.featuredSandboxes = profile.featuredSandboxes;
-    effects.analytics.track('Profile - Pinnned sandboxes reorderd');
   } catch (error) {
     // TODO: rollback optimisic update
 
@@ -492,7 +480,6 @@ export const changeSandboxPrivacy = async (
 
   try {
     await effects.api.updatePrivacy(id, privacy);
-    effects.analytics.track('Profile - Sandbox privacy changed');
   } catch (error) {
     // rollback optimistic update
     // it is safe to assume that the sandbox was public (privacy:0)

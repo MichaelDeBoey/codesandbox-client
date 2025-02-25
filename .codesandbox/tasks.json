@@ -35,7 +35,7 @@
     "app:fast:stream": {
       "name": "Application (fast + stream)",
       "command": "yarn start:fast:stream",
-      "runAtStart": true,
+      "runAtStart": false,
       "preview": {
         "port": 3000
       },
@@ -50,6 +50,18 @@
     "typecheck": {
       "name": "typecheck",
       "command": "yarn typecheck"
+    },
+    "lint": {
+      "name": "lint",
+      "command": "yarn lint"
+    },
+    "start:sandpack-sandbox": {
+      "name": "start:sandpack-sandbox",
+      "command": "cd packages/app && yarn start:sandpack-sandbox"
+    },
+    "start:sandpack-core": {
+      "name": "start:sandpack-core",
+      "command": "cd packages/sandpack-core && yarn start"
     }
   }
 }

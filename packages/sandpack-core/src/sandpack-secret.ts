@@ -9,7 +9,7 @@ export const getSandpackSecret = () =>
   );
 
 export const removeSandpackSecret = () => {
-  document.cookie = `${SANDPACK_SECRET_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:01 GMT;samesite=none;secure;`;
+  document.cookie = `${SANDPACK_SECRET_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:01 GMT;samesite=none;secure;partitioned`;
 };
 
 export const setSandpackSecret = (secret: string) => {
@@ -58,7 +58,7 @@ function getPopupDimensions() {
 
 export function getProtocolAndHostWithSSE() {
   if (document.location.host.startsWith('localhost')) {
-    return 'https://6er17b-3000.csb.app';
+    return 'http://localhost:3000';
   }
 
   if (document.location.host.endsWith('.io')) {

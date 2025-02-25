@@ -1,5 +1,4 @@
 import React from 'react';
-import { useHistory, Link } from 'react-router-dom';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import formatDistanceStrict from 'date-fns/formatDistanceStrict';
 import { zonedTimeToUtc } from 'date-fns-tz';
@@ -7,12 +6,10 @@ import { zonedTimeToUtc } from 'date-fns-tz';
 import { useActions, useAppState } from 'app/overmind';
 import { sandboxUrl } from '@codesandbox/common/lib/utils/url-generator';
 import { ESC } from '@codesandbox/common/lib/utils/keycodes';
-import track, {
-  trackImprovedDashboardEvent,
-} from '@codesandbox/common/lib/utils/analytics';
+import track from '@codesandbox/common/lib/utils/analytics';
 import { Icon } from '@codesandbox/components';
 import { formatNumber } from '@codesandbox/components/lib/components/Stats';
-import { useBetaSandboxEditor } from 'app/hooks/useBetaSandboxEditor';
+
 import { SandboxCard } from './SandboxCard';
 import { SandboxListItem } from './SandboxListItem';
 import { getTemplateIcon } from './TemplateIcon';
@@ -20,12 +17,6 @@ import { useSelection } from '../Selection';
 import { DashboardSandbox, DashboardTemplate, PageTypes } from '../../types';
 import { SandboxItemComponentProps } from './types';
 import { useDrag } from '../../utils/dnd';
-
-const MAP_SANDBOX_EVENT_TO_PAGE_TYPE: Partial<Record<PageTypes, string>> = {
-  recent: 'Dashboard - Open Sandbox from Recent',
-  drafts: 'Dashboard - Open Sandbox from My Drafts',
-  sandboxes: 'Dashboard - Open Sandbox from Sandboxes',
-};
 
 const PrivacyIcons = {
   0: () => null,
@@ -67,8 +58,7 @@ function getFolderName(item: GenericSandboxProps['item']): string | undefined {
 }
 
 const GenericSandbox = ({ isScrolling, item, page }: GenericSandboxProps) => {
-  const { dashboard, activeWorkspaceAuthorization } = useAppState();
-  const [hasBetaEditorExperiment] = useBetaSandboxEditor();
+  const { user, dashboard, activeWorkspaceAuthorization } = useAppState();
   const actions = useActions();
 
   const { sandbox } = item;
@@ -89,8 +79,7 @@ const GenericSandbox = ({ isScrolling, item, page }: GenericSandboxProps) => {
 
   const viewCount = formatNumber(sandbox.viewCount);
 
-  const url = sandboxUrl(sandbox, hasBetaEditorExperiment);
-  const linksToV2 = sandbox.isV2 || (!sandbox.isSse && hasBetaEditorExperiment);
+  const url = sandboxUrl(sandbox);
 
   const TemplateIcon = getTemplateIcon(sandbox);
   const PrivacyIcon = PrivacyIcons[sandbox.privacy];
@@ -170,23 +159,15 @@ const GenericSandbox = ({ isScrolling, item, page }: GenericSandboxProps) => {
     [onRightClick, onMenuEvent, sandbox.id]
   );
 
-  const history = useHistory();
-
   const onDoubleClick = event => {
     if (page === 'deleted') {
       // Can't open deleted items, they don't exist anymore so we open
       // the context menu instead.
       onContextMenu(event);
+    } else if (event.ctrlKey || event.metaKey) {
+      window.open(url, '_blank');
     } else {
-      trackImprovedDashboardEvent(MAP_SANDBOX_EVENT_TO_PAGE_TYPE[page]);
-
-      if (event.ctrlKey || event.metaKey) {
-        window.open(url, '_blank');
-      } else if (linksToV2) {
-        window.location.href = url;
-      } else {
-        history.push(url);
-      }
+      window.location.href = url;
     }
   };
 
@@ -240,15 +221,8 @@ const GenericSandbox = ({ isScrolling, item, page }: GenericSandboxProps) => {
       ? {
           ...baseInteractions,
           interaction: 'link' as const,
-          as: linksToV2 ? 'a' : Link,
-          to: linksToV2 ? undefined : url,
-          href: linksToV2 ? url : undefined,
-          onClick: () => {
-            // On the recent page the sandbox card is an anchor, so we only have
-            // to track using onclick, the sandbox is opened through native anchor
-            // functionality (including pressing meta keys for new tab).
-            trackImprovedDashboardEvent(MAP_SANDBOX_EVENT_TO_PAGE_TYPE[page]);
-          },
+          as: 'a',
+          href: url,
           style: {
             textDecoration: 'none',
           },
@@ -301,11 +275,17 @@ const GenericSandbox = ({ isScrolling, item, page }: GenericSandboxProps) => {
   }, [preview]);
 
   return (
-    <div {...dragProps} css={{ height: '100%' }}>
+    <div {...dragProps} style={{ height: '100%' }}>
       <Component
         {...sandboxProps}
         {...interactionProps}
         isScrolling={isScrolling}
+        username={
+          sandboxProps.sandbox.author &&
+          sandboxProps.sandbox.author.username === user?.username
+            ? 'you'
+            : sandboxProps.sandbox.author?.username || null
+        }
       />
     </div>
   );

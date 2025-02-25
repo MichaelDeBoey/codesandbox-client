@@ -10,8 +10,6 @@ import { VariableGrid } from 'app/pages/Dashboard/Components/VariableGrid';
 import { DashboardGridItem, PageTypes } from 'app/pages/Dashboard/types';
 import { useWorkspaceLimits } from 'app/hooks/useWorkspaceLimits';
 import { ActionCard } from 'app/pages/Dashboard/Components/shared/ActionCard';
-import { RestrictedSandboxes } from 'app/components/StripeMessages/RestrictedSandboxes';
-import { Element } from '@codesandbox/components';
 import { useFilteredItems } from './useFilteredItems';
 
 export const SandboxesPage = () => {
@@ -22,7 +20,7 @@ export const SandboxesPage = () => {
   const cleanParam = currentPath.split(' ').join('{}');
   const items = useFilteredItems(currentPath, cleanParam, level);
   const actions = useActions();
-  const { isFrozen, hasReachedSandboxLimit } = useWorkspaceLimits();
+  const { isFrozen } = useWorkspaceLimits();
   const {
     dashboard: { allCollections },
     activeTeam,
@@ -65,17 +63,7 @@ export const SandboxesPage = () => {
         currentCollection
           ? () => {
               actions.modalOpened({
-                modal: 'createSandbox',
-                itemId: currentCollection.id,
-              });
-            }
-          : undefined
-      }
-      createNewDevbox={
-        currentCollection
-          ? () => {
-              actions.modalOpened({
-                modal: 'createDevbox',
+                modal: 'create',
                 itemId: currentCollection.id,
               });
             }
@@ -87,12 +75,6 @@ export const SandboxesPage = () => {
           {currentPath.split('/').pop() || 'Sandboxes'} - CodeSandbox
         </title>
       </Helmet>
-
-      {hasReachedSandboxLimit && (
-        <Element css={{ padding: '0 26px 32px 16px' }}>
-          <RestrictedSandboxes />
-        </Element>
-      )}
 
       <Header
         activeTeam={activeTeam}
@@ -106,7 +88,7 @@ export const SandboxesPage = () => {
         <EmptyPage.StyledWrapper>
           <EmptyPage.StyledGrid>
             <ActionCard
-              icon="boxDevbox"
+              icon="plus"
               disabled={isFrozen}
               onClick={() => {
                 track('Empty Folder - Create devbox', {
@@ -115,31 +97,12 @@ export const SandboxesPage = () => {
                 });
 
                 actions.modalOpened({
-                  modal: 'createDevbox',
+                  modal: 'create',
                   itemId: currentCollection.id,
                 });
               }}
             >
-              Create devbox
-            </ActionCard>
-            <ActionCard
-              icon="boxSandbox"
-              disabled={hasReachedSandboxLimit}
-              onClick={() => {
-                track('Empty Folder - Create sandbox', {
-                  codesandbox: 'V1',
-                  event_source: 'UI',
-                  card_type: 'get-started-action',
-                  tab: 'default',
-                });
-
-                actions.modalOpened({
-                  modal: 'createSandbox',
-                  itemId: currentCollection.id,
-                });
-              }}
-            >
-              Create sandbox
+              Create
             </ActionCard>
           </EmptyPage.StyledGrid>
         </EmptyPage.StyledWrapper>

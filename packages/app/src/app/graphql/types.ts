@@ -155,8 +155,24 @@ export type RootQueryType = {
    * ```
    */
   recentTeamsByRepository: Array<TeamPreview>;
-  /** Get a sandbox */
+  /**
+   * Get a sandbox by its (short) ID
+   *
+   * Requires the current user have read authorization (or that the sandbox is public). Otherwise
+   * returns an error (`"unauthorized"`).
+   */
   sandbox: Maybe<Sandbox>;
+  /**
+   * Returns a sandbox's team ID if the current user is eligible to join that workspace
+   *
+   * This query is designed for use in 404 experience where the current user does not have access
+   * to the resource but *might* have access if they accept an open invitation to its workspace.
+   * Returns null if no such open invitation exists, or an error if no user is authenticated.
+   *
+   * For a list of all workspaces the user is eligible to join, see `query eligibleWorkspaces`.
+   * The ID returned by this query can be used in `mutation joinEligibleWorkspace`.
+   */
+  sandboxEligibleWorkspace: Maybe<TeamPreview>;
   /** A team from an invite token */
   teamByToken: Maybe<TeamPreview>;
 };
@@ -227,6 +243,10 @@ export type RootQueryTypeSandboxArgs = {
   sandboxId: Scalars['ID'];
 };
 
+export type RootQueryTypeSandboxEligibleWorkspaceArgs = {
+  sandboxId: Scalars['ID'];
+};
+
 export type RootQueryTypeTeamByTokenArgs = {
   inviteToken: Scalars['String'];
 };
@@ -242,6 +262,7 @@ export type Album = {
 export type Sandbox = {
   __typename?: 'Sandbox';
   alias: Maybe<Scalars['String']>;
+  /** @deprecated No longer supported */
   alwaysOn: Maybe<Scalars['Boolean']>;
   author: Maybe<User>;
   authorId: Maybe<Scalars['UUID4']>;
@@ -264,6 +285,7 @@ export type Sandbox = {
   insertedAt: Scalars['String'];
   invitations: Array<Invitation>;
   isFrozen: Scalars['Boolean'];
+  /** @deprecated No longer supported */
   isSse: Maybe<Scalars['Boolean']>;
   isV2: Scalars['Boolean'];
   /** Depending on the context, this may be the last access of the current user or the aggregate last access for all users */
@@ -388,6 +410,8 @@ export type Team = {
   legacy: Scalars['Boolean'];
   limits: TeamLimits;
   members: Array<TeamMember>;
+  /** Additional user-provided metadata about the workspace */
+  metadata: TeamMetadata;
   name: Scalars['String'];
   privateRegistry: Maybe<PrivateRegistry>;
   /**
@@ -492,7 +516,11 @@ export type TeamLimits = {
   includedDrafts: Scalars['Int'];
   /** Number of workspace members included with the team's subscription, including add-ons */
   includedMembers: Scalars['Int'];
-  /** Number of sandboxes included with the team's subscription, including add-ons */
+  /** Number of included private browser sandboxes with the team's subscription */
+  includedPrivateSandboxes: Scalars['Int'];
+  /** Number of included public browser sandboxes with the team's subscription */
+  includedPublicSandboxes: Scalars['Int'];
+  /** DEPRECATED: Number of sandboxes included with the team's subscription */
   includedSandboxes: Scalars['Int'];
   /** Storage (in GB) included with the team's subscription, including add-ons */
   includedStorage: Scalars['Int'];
@@ -531,6 +559,13 @@ export type TeamMember = {
   id: Scalars['UUID4'];
   name: Maybe<Scalars['String']>;
   username: Scalars['String'];
+};
+
+/** Additional user-provided metadata about a workspace */
+export type TeamMetadata = {
+  __typename?: 'TeamMetadata';
+  /** Use-cases for the workspace provided during creation */
+  useCases: Array<Scalars['String']>;
 };
 
 /** A private package registry */
@@ -1090,7 +1125,6 @@ export enum SubscriptionOrigin {
 }
 
 export enum SubscriptionPaymentProvider {
-  Paddle = 'PADDLE',
   Stripe = 'STRIPE',
 }
 
@@ -1112,6 +1146,7 @@ export enum SubscriptionType {
 
 export type SubscriptionSchedule = {
   __typename?: 'SubscriptionSchedule';
+  billingInterval: Maybe<SubscriptionInterval>;
   current: Maybe<SubscriptionSchedulePhase>;
   upcoming: Maybe<SubscriptionSchedulePhase>;
 };
@@ -1126,7 +1161,7 @@ export type SubscriptionSchedulePhase = {
 export type SubscriptionItem = {
   __typename?: 'SubscriptionItem';
   name: Scalars['String'];
-  /** Quanity is null for metered items, such as the on-demand credit usage. */
+  /** Quantity is null for metered items, such as the on-demand credit usage. */
   quantity: Maybe<Scalars['Int']>;
   unitAmount: Maybe<Scalars['Int']>;
   unitAmountDecimal: Maybe<Scalars['String']>;
@@ -1420,6 +1455,15 @@ export type CurrentUser = {
    * Returns false if they have created any teams that have used a trial in the last 6 months.
    */
   eligibleForTrial: Scalars['Boolean'];
+  /**
+   * List workspaces a user is eligible to join
+   *
+   * This endpoint looks at the user's verified email address domains to find workspaces that allow
+   * automatically joining.
+   *
+   * Note that this endpoint is _expensive_ to calculate, and should only be called when necessary.
+   */
+  eligibleWorkspaces: Array<TeamPreview>;
   email: Scalars['String'];
   /** User-based feature flags and whether or not they are active for the current user */
   featureFlags: UserFeatureFlags;
@@ -1912,6 +1956,19 @@ export type RootMutationType = {
   /** Invite someone to a team via email */
   inviteToTeamViaEmail: Scalars['String'];
   /**
+   * Join a workspace the user is eligible to join based on email domain
+   *
+   * A list of eligible workspaces (and their IDs) is available from the `me > eligibleWorkspaces`
+   * query. This endpoint requires an authenticated user and an eligible workspace ID. Otherwise,
+   * one of the following errors will be returned:
+   *
+   * * `Please log in`
+   * * `Workspace not found`
+   *
+   * The latter error represents both invalid IDs and ineligible workspaces.
+   */
+  joinEligibleWorkspace: Team;
+  /**
    * Join an existing live session
    *
    * Accessible to non-editor guests for content that has an existing live session. For editors,
@@ -1955,7 +2012,9 @@ export type RootMutationType = {
    * with Stripe in a way that is more appropriate for a mutation than a query.
    */
   previewConvertToUsageBilling: InvoicePreview;
+  /** @deprecated Subscription management no longer supported via GraphQL */
   previewUpdateSubscriptionBillingInterval: BillingPreview;
+  previewUpdateUsageSubscriptionPlan: InvoicePreview;
   reactivateSubscription: ProSubscription;
   redeemSandboxInvitation: Invitation;
   /** Redeem an invite token from a team */
@@ -2038,8 +2097,6 @@ export type RootMutationType = {
   setPreventSandboxesLeavingWorkspace: Array<Sandbox>;
   /** Change the primary workspace for the current user */
   setPrimaryWorkspace: Scalars['String'];
-  /** set sandbox always on status */
-  setSandboxAlwaysOn: Sandbox;
   setSandboxesFrozen: Array<Sandbox>;
   setSandboxesPrivacy: Array<Sandbox>;
   /** Configure consent for AI features in this team. Can be overridden for specific repositories or sandboxes. */
@@ -2048,6 +2105,8 @@ export type RootMutationType = {
   setTeamDescription: Team;
   /** Set user-editable limits for the workspace */
   setTeamLimits: Scalars['String'];
+  /** Set user-provided metadata about the workspace */
+  setTeamMetadata: Team;
   /** Set minimum privacy level for workspace */
   setTeamMinimumPrivacy: WorkspaceSandboxSettings;
   /** Set the name of the team */
@@ -2109,17 +2168,25 @@ export type RootMutationType = {
    * Not passing a specific argument will leave it unchanged, explicitly passing `null` will revert it to the default.
    */
   updateSandboxSettings: SandboxSettings;
-  /** update subscription details (not billing details) */
+  /**
+   * update subscription details (not billing details)
+   * @deprecated Subscription management no longer supported via GraphQL
+   */
   updateSubscription: ProSubscription;
+  /** @deprecated Subscription management no longer supported via GraphQL */
   updateSubscriptionBillingInterval: ProSubscription;
   /**
-   * Update an active usage-based billing subscription.
+   * Update addons for usage-based billing subscription.
    *
    * This mutation requires the caller to be an admin of the team. Otherwise, an error will be
    * returned `"Not an admin"`. This return value will always be `true`. Clients should observe
    * the `teamEvents` subscription for updates to the workspace subscription.
+   *
+   * After the upcoming pricing change anything other than an empty list to cancel all add-ons
+   * will return an error.
    */
   updateUsageSubscription: Scalars['Boolean'];
+  updateUsageSubscriptionPlan: Scalars['Boolean'];
 };
 
 export type RootMutationTypeAcceptTeamInvitationArgs = {
@@ -2139,12 +2206,14 @@ export type RootMutationTypeAddSandboxesToAlbumArgs = {
 
 export type RootMutationTypeAddToCollectionArgs = {
   collectionPath: Scalars['String'];
+  privacy: InputMaybe<Scalars['Int']>;
   sandboxIds: InputMaybe<Array<InputMaybe<Scalars['ID']>>>;
   teamId: InputMaybe<Scalars['UUID4']>;
 };
 
 export type RootMutationTypeAddToCollectionOrTeamArgs = {
   collectionPath: InputMaybe<Scalars['String']>;
+  privacy: InputMaybe<Scalars['Int']>;
   sandboxIds: InputMaybe<Array<InputMaybe<Scalars['ID']>>>;
   teamId: InputMaybe<Scalars['UUID4']>;
 };
@@ -2177,6 +2246,7 @@ export type RootMutationTypeChangeTeamMemberAuthorizationsArgs = {
 
 export type RootMutationTypeConvertToUsageBillingArgs = {
   addons: Array<Scalars['String']>;
+  billingInterval: InputMaybe<SubscriptionInterval>;
   plan: Scalars['String'];
   teamId: Scalars['UUID4'];
 };
@@ -2212,7 +2282,6 @@ export type RootMutationTypeCreateCollectionArgs = {
 };
 
 export type RootMutationTypeCreateCommentArgs = {
-  codeReference: InputMaybe<CodeReference>;
   codeReferences: InputMaybe<Array<CodeReference>>;
   content: Scalars['String'];
   id: InputMaybe<Scalars['ID']>;
@@ -2376,6 +2445,10 @@ export type RootMutationTypeInviteToTeamViaEmailArgs = {
   teamId: Scalars['UUID4'];
 };
 
+export type RootMutationTypeJoinEligibleWorkspaceArgs = {
+  workspaceId: Scalars['ID'];
+};
+
 export type RootMutationTypeJoinLiveSessionArgs = {
   id: Scalars['ID'];
 };
@@ -2409,6 +2482,7 @@ export type RootMutationTypePermanentlyDeleteSandboxesArgs = {
 
 export type RootMutationTypePreviewConvertToUsageBillingArgs = {
   addons: Array<Scalars['String']>;
+  billingInterval: InputMaybe<SubscriptionInterval>;
   plan: Scalars['String'];
   teamId: Scalars['UUID4'];
 };
@@ -2416,6 +2490,12 @@ export type RootMutationTypePreviewConvertToUsageBillingArgs = {
 export type RootMutationTypePreviewUpdateSubscriptionBillingIntervalArgs = {
   billingInterval: SubscriptionInterval;
   subscriptionId: Scalars['UUID4'];
+  teamId: Scalars['UUID4'];
+};
+
+export type RootMutationTypePreviewUpdateUsageSubscriptionPlanArgs = {
+  billingInterval: InputMaybe<SubscriptionInterval>;
+  plan: InputMaybe<Scalars['String']>;
   teamId: Scalars['UUID4'];
 };
 
@@ -2540,11 +2620,6 @@ export type RootMutationTypeSetPrimaryWorkspaceArgs = {
   primaryWorkspaceId: Scalars['UUID4'];
 };
 
-export type RootMutationTypeSetSandboxAlwaysOnArgs = {
-  alwaysOn: Scalars['Boolean'];
-  sandboxId: Scalars['ID'];
-};
-
 export type RootMutationTypeSetSandboxesFrozenArgs = {
   isFrozen: Scalars['Boolean'];
   sandboxIds: Array<Scalars['ID']>;
@@ -2570,6 +2645,11 @@ export type RootMutationTypeSetTeamDescriptionArgs = {
 
 export type RootMutationTypeSetTeamLimitsArgs = {
   onDemandSpendingLimit: InputMaybe<Scalars['Int']>;
+  teamId: Scalars['UUID4'];
+};
+
+export type RootMutationTypeSetTeamMetadataArgs = {
+  metadata: TeamMetadataInput;
   teamId: Scalars['UUID4'];
 };
 
@@ -2705,6 +2785,12 @@ export type RootMutationTypeUpdateUsageSubscriptionArgs = {
   teamId: Scalars['UUID4'];
 };
 
+export type RootMutationTypeUpdateUsageSubscriptionPlanArgs = {
+  billingInterval: InputMaybe<SubscriptionInterval>;
+  plan: InputMaybe<Scalars['String']>;
+  teamId: Scalars['UUID4'];
+};
+
 export type MemberAuthorization = {
   authorization: TeamMemberAuthorization;
   teamManager: InputMaybe<Scalars['Boolean']>;
@@ -2774,7 +2860,13 @@ export type InvoicePreview = {
   __typename?: 'InvoicePreview';
   total: Scalars['Int'];
   totalExcludingTax: Maybe<Scalars['Int']>;
+  updateMoment: Maybe<SubscriptionUpdateMoment>;
 };
+
+export enum SubscriptionUpdateMoment {
+  Immediately = 'IMMEDIATELY',
+  NextBillDate = 'NEXT_BILL_DATE',
+}
 
 /** DEPRECATED: Conversion to usage-based billing uses InvoicePreview instead */
 export type BillingPreview = {
@@ -2788,6 +2880,12 @@ export type BillingDetails = {
   amount: Scalars['Int'];
   currency: Scalars['String'];
   date: Scalars['String'];
+};
+
+/** Additional user-provided metadata about a workspace */
+export type TeamMetadataInput = {
+  /** Use-cases for the workspace */
+  useCases: Array<Scalars['String']>;
 };
 
 export type RootSubscriptionType = {
@@ -3097,7 +3195,6 @@ export type TemplateFragment = {
     insertedAt: string;
     updatedAt: string;
     isV2: boolean;
-    isSse: boolean | null;
     forkCount: number;
     viewCount: number;
     team: { __typename?: 'TeamPreview'; name: string } | null;
@@ -3129,7 +3226,6 @@ export type RecentAndWorkspaceTemplatesQuery = {
         insertedAt: string;
         updatedAt: string;
         isV2: boolean;
-        isSse: boolean | null;
         forkCount: number;
         viewCount: number;
         team: { __typename?: 'TeamPreview'; name: string } | null;
@@ -3154,7 +3250,6 @@ export type RecentAndWorkspaceTemplatesQuery = {
           insertedAt: string;
           updatedAt: string;
           isV2: boolean;
-          isSse: boolean | null;
           forkCount: number;
           viewCount: number;
           team: { __typename?: 'TeamPreview'; name: string } | null;
@@ -3235,1218 +3330,6 @@ export type RepositoryTeamsQuery = {
   }>;
 };
 
-export type CollaboratorFragment = {
-  __typename?: 'Collaborator';
-  id: any;
-  authorization: Authorization;
-  lastSeenAt: any | null;
-  warning: string | null;
-  user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-};
-
-export type InvitationFragment = {
-  __typename?: 'Invitation';
-  id: string | null;
-  authorization: Authorization;
-  email: string | null;
-};
-
-export type SandboxChangedFragment = {
-  __typename?: 'Sandbox';
-  id: string;
-  privacy: number;
-  title: string | null;
-  description: string | null;
-  authorization: Authorization;
-};
-
-export type AddCollaboratorMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  username: Scalars['String'];
-  authorization: Authorization;
-}>;
-
-export type AddCollaboratorMutation = {
-  __typename?: 'RootMutationType';
-  addCollaborator: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type RemoveCollaboratorMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  username: Scalars['String'];
-}>;
-
-export type RemoveCollaboratorMutation = {
-  __typename?: 'RootMutationType';
-  removeCollaborator: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type ChangeCollaboratorAuthorizationMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  username: Scalars['String'];
-  authorization: Authorization;
-}>;
-
-export type ChangeCollaboratorAuthorizationMutation = {
-  __typename?: 'RootMutationType';
-  changeCollaboratorAuthorization: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type InviteCollaboratorMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  authorization: Authorization;
-  email: Scalars['String'];
-}>;
-
-export type InviteCollaboratorMutation = {
-  __typename?: 'RootMutationType';
-  createSandboxInvitation: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type RevokeSandboxInvitationMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  invitationId: Scalars['UUID4'];
-}>;
-
-export type RevokeSandboxInvitationMutation = {
-  __typename?: 'RootMutationType';
-  revokeSandboxInvitation: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type ChangeSandboxInvitationAuthorizationMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  invitationId: Scalars['UUID4'];
-  authorization: Authorization;
-}>;
-
-export type ChangeSandboxInvitationAuthorizationMutation = {
-  __typename?: 'RootMutationType';
-  changeSandboxInvitationAuthorization: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type RedeemSandboxInvitationMutationVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  invitationToken: Scalars['String'];
-}>;
-
-export type RedeemSandboxInvitationMutation = {
-  __typename?: 'RootMutationType';
-  redeemSandboxInvitation: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type SandboxCollaboratorsQueryVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type SandboxCollaboratorsQuery = {
-  __typename?: 'RootQueryType';
-  sandbox: {
-    __typename?: 'Sandbox';
-    collaborators: Array<{
-      __typename?: 'Collaborator';
-      id: any;
-      authorization: Authorization;
-      lastSeenAt: any | null;
-      warning: string | null;
-      user: {
-        __typename?: 'User';
-        id: any;
-        username: string;
-        avatarUrl: string;
-      };
-    }>;
-  } | null;
-};
-
-export type SandboxInvitationsQueryVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type SandboxInvitationsQuery = {
-  __typename?: 'RootQueryType';
-  sandbox: {
-    __typename?: 'Sandbox';
-    invitations: Array<{
-      __typename?: 'Invitation';
-      id: string | null;
-      authorization: Authorization;
-      email: string | null;
-    }>;
-  } | null;
-};
-
-export type OnCollaboratorAddedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnCollaboratorAddedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  collaboratorAdded: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type OnCollaboratorChangedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnCollaboratorChangedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  collaboratorChanged: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type OnCollaboratorRemovedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnCollaboratorRemovedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  collaboratorRemoved: {
-    __typename?: 'Collaborator';
-    id: any;
-    authorization: Authorization;
-    lastSeenAt: any | null;
-    warning: string | null;
-    user: { __typename?: 'User'; id: any; username: string; avatarUrl: string };
-  };
-};
-
-export type OnInvitationCreatedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnInvitationCreatedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  invitationCreated: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type OnInvitationRemovedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnInvitationRemovedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  invitationRemoved: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type OnInvitationChangedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnInvitationChangedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  invitationChanged: {
-    __typename?: 'Invitation';
-    id: string | null;
-    authorization: Authorization;
-    email: string | null;
-  };
-};
-
-export type OnSandboxChangedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type OnSandboxChangedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  sandboxChanged: {
-    __typename?: 'Sandbox';
-    id: string;
-    privacy: number;
-    title: string | null;
-    description: string | null;
-    authorization: Authorization;
-  };
-};
-
-export type CodeReferenceMetadataFragment = {
-  __typename?: 'CodeReferenceMetadata';
-  anchor: number;
-  code: string;
-  head: number;
-  path: string;
-};
-
-export type UserReferenceMetadataFragment = {
-  __typename?: 'UserReferenceMetadata';
-  username: string;
-  userId: string;
-};
-
-export type ImageReferenceMetadataFragment = {
-  __typename?: 'ImageReferenceMetadata';
-  fileName: string;
-};
-
-export type PreviewReferenceMetadataFragment = {
-  __typename?: 'PreviewReferenceMetadata';
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-  screenshotUrl: string | null;
-  userAgent: string;
-};
-
-export type CommentFragment = {
-  __typename?: 'Comment';
-  id: any;
-  content: string | null;
-  insertedAt: any;
-  updatedAt: any;
-  isResolved: boolean;
-  replyCount: number;
-  anchorReference: {
-    __typename?: 'Reference';
-    id: any;
-    resource: string;
-    type: string;
-    metadata:
-      | {
-          __typename?: 'CodeReferenceMetadata';
-          anchor: number;
-          code: string;
-          head: number;
-          path: string;
-        }
-      | { __typename?: 'ImageReferenceMetadata' }
-      | {
-          __typename?: 'PreviewReferenceMetadata';
-          width: number;
-          height: number;
-          x: number;
-          y: number;
-          screenshotUrl: string | null;
-          userAgent: string;
-        }
-      | { __typename?: 'UserReferenceMetadata' };
-  } | null;
-  references: Array<{
-    __typename?: 'Reference';
-    id: any;
-    resource: string;
-    type: string;
-    metadata:
-      | {
-          __typename?: 'CodeReferenceMetadata';
-          anchor: number;
-          code: string;
-          head: number;
-          path: string;
-        }
-      | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-      | { __typename?: 'PreviewReferenceMetadata' }
-      | {
-          __typename?: 'UserReferenceMetadata';
-          username: string;
-          userId: string;
-        };
-  }>;
-  user: {
-    __typename?: 'User';
-    id: any;
-    name: string | null;
-    username: string;
-    avatarUrl: string;
-  };
-  parentComment: { __typename?: 'Comment'; id: any } | null;
-};
-
-export type CommentWithRepliesFragment = {
-  __typename?: 'Comment';
-  id: any;
-  content: string | null;
-  insertedAt: any;
-  updatedAt: any;
-  isResolved: boolean;
-  replyCount: number;
-  anchorReference: {
-    __typename?: 'Reference';
-    id: any;
-    resource: string;
-    type: string;
-    metadata:
-      | {
-          __typename?: 'CodeReferenceMetadata';
-          anchor: number;
-          code: string;
-          head: number;
-          path: string;
-        }
-      | { __typename?: 'ImageReferenceMetadata' }
-      | {
-          __typename?: 'PreviewReferenceMetadata';
-          width: number;
-          height: number;
-          x: number;
-          y: number;
-          screenshotUrl: string | null;
-          userAgent: string;
-        }
-      | { __typename?: 'UserReferenceMetadata' };
-  } | null;
-  references: Array<{
-    __typename?: 'Reference';
-    id: any;
-    resource: string;
-    type: string;
-    metadata:
-      | {
-          __typename?: 'CodeReferenceMetadata';
-          anchor: number;
-          code: string;
-          head: number;
-          path: string;
-        }
-      | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-      | { __typename?: 'PreviewReferenceMetadata' }
-      | {
-          __typename?: 'UserReferenceMetadata';
-          username: string;
-          userId: string;
-        };
-  }>;
-  user: {
-    __typename?: 'User';
-    id: any;
-    name: string | null;
-    username: string;
-    avatarUrl: string;
-  };
-  parentComment: { __typename?: 'Comment'; id: any } | null;
-  comments: Array<{
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  }>;
-};
-
-export type CreateCommentMutationVariables = Exact<{
-  id: InputMaybe<Scalars['ID']>;
-  content: Scalars['String'];
-  sandboxId: Scalars['ID'];
-  parentCommentId: InputMaybe<Scalars['ID']>;
-  userReferences: InputMaybe<Array<UserReference> | UserReference>;
-  codeReferences: InputMaybe<Array<CodeReference> | CodeReference>;
-  imageReferences: InputMaybe<Array<ImageReference> | ImageReference>;
-}>;
-
-export type CreateCommentMutation = {
-  __typename?: 'RootMutationType';
-  createComment: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
-export type CreateCodeCommentMutationVariables = Exact<{
-  id: InputMaybe<Scalars['ID']>;
-  content: Scalars['String'];
-  sandboxId: Scalars['ID'];
-  parentCommentId: InputMaybe<Scalars['ID']>;
-  anchorReference: CodeReference;
-  userReferences: InputMaybe<Array<UserReference> | UserReference>;
-  codeReferences: InputMaybe<Array<CodeReference> | CodeReference>;
-  imageReferences: InputMaybe<Array<ImageReference> | ImageReference>;
-}>;
-
-export type CreateCodeCommentMutation = {
-  __typename?: 'RootMutationType';
-  createCodeComment: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
-export type CreatePreviewCommentMutationVariables = Exact<{
-  id: InputMaybe<Scalars['ID']>;
-  content: Scalars['String'];
-  sandboxId: Scalars['ID'];
-  parentCommentId: InputMaybe<Scalars['ID']>;
-  anchorReference: PreviewReference;
-  userReferences: InputMaybe<Array<UserReference> | UserReference>;
-  codeReferences: InputMaybe<Array<CodeReference> | CodeReference>;
-  imageReferences: InputMaybe<Array<ImageReference> | ImageReference>;
-}>;
-
-export type CreatePreviewCommentMutation = {
-  __typename?: 'RootMutationType';
-  createPreviewComment: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
-export type DeleteCommentMutationVariables = Exact<{
-  commentId: Scalars['UUID4'];
-  sandboxId: Scalars['ID'];
-}>;
-
-export type DeleteCommentMutation = {
-  __typename?: 'RootMutationType';
-  deleteComment: { __typename?: 'Comment'; id: any };
-};
-
-export type UpdateCommentMutationVariables = Exact<{
-  commentId: Scalars['UUID4'];
-  sandboxId: Scalars['ID'];
-  content: InputMaybe<Scalars['String']>;
-  userReferences: InputMaybe<Array<UserReference> | UserReference>;
-  codeReferences: InputMaybe<Array<CodeReference> | CodeReference>;
-  imageReferences: InputMaybe<Array<ImageReference> | ImageReference>;
-}>;
-
-export type UpdateCommentMutation = {
-  __typename?: 'RootMutationType';
-  updateComment: { __typename?: 'Comment'; id: any };
-};
-
-export type ResolveCommentMutationVariables = Exact<{
-  commentId: Scalars['UUID4'];
-  sandboxId: Scalars['ID'];
-}>;
-
-export type ResolveCommentMutation = {
-  __typename?: 'RootMutationType';
-  resolveComment: { __typename?: 'Comment'; id: any };
-};
-
-export type UnresolveCommentMutationVariables = Exact<{
-  commentId: Scalars['UUID4'];
-  sandboxId: Scalars['ID'];
-}>;
-
-export type UnresolveCommentMutation = {
-  __typename?: 'RootMutationType';
-  unresolveComment: { __typename?: 'Comment'; id: any };
-};
-
-export type SandboxCommentQueryVariables = Exact<{
-  sandboxId: Scalars['ID'];
-  commentId: Scalars['UUID4'];
-}>;
-
-export type SandboxCommentQuery = {
-  __typename?: 'RootQueryType';
-  sandbox: {
-    __typename?: 'Sandbox';
-    comment: {
-      __typename?: 'Comment';
-      id: any;
-      content: string | null;
-      insertedAt: any;
-      updatedAt: any;
-      isResolved: boolean;
-      replyCount: number;
-      anchorReference: {
-        __typename?: 'Reference';
-        id: any;
-        resource: string;
-        type: string;
-        metadata:
-          | {
-              __typename?: 'CodeReferenceMetadata';
-              anchor: number;
-              code: string;
-              head: number;
-              path: string;
-            }
-          | { __typename?: 'ImageReferenceMetadata' }
-          | {
-              __typename?: 'PreviewReferenceMetadata';
-              width: number;
-              height: number;
-              x: number;
-              y: number;
-              screenshotUrl: string | null;
-              userAgent: string;
-            }
-          | { __typename?: 'UserReferenceMetadata' };
-      } | null;
-      references: Array<{
-        __typename?: 'Reference';
-        id: any;
-        resource: string;
-        type: string;
-        metadata:
-          | {
-              __typename?: 'CodeReferenceMetadata';
-              anchor: number;
-              code: string;
-              head: number;
-              path: string;
-            }
-          | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-          | { __typename?: 'PreviewReferenceMetadata' }
-          | {
-              __typename?: 'UserReferenceMetadata';
-              username: string;
-              userId: string;
-            };
-      }>;
-      user: {
-        __typename?: 'User';
-        id: any;
-        name: string | null;
-        username: string;
-        avatarUrl: string;
-      };
-      parentComment: { __typename?: 'Comment'; id: any } | null;
-      comments: Array<{
-        __typename?: 'Comment';
-        id: any;
-        content: string | null;
-        insertedAt: any;
-        updatedAt: any;
-        isResolved: boolean;
-        replyCount: number;
-        anchorReference: {
-          __typename?: 'Reference';
-          id: any;
-          resource: string;
-          type: string;
-          metadata:
-            | {
-                __typename?: 'CodeReferenceMetadata';
-                anchor: number;
-                code: string;
-                head: number;
-                path: string;
-              }
-            | { __typename?: 'ImageReferenceMetadata' }
-            | {
-                __typename?: 'PreviewReferenceMetadata';
-                width: number;
-                height: number;
-                x: number;
-                y: number;
-                screenshotUrl: string | null;
-                userAgent: string;
-              }
-            | { __typename?: 'UserReferenceMetadata' };
-        } | null;
-        references: Array<{
-          __typename?: 'Reference';
-          id: any;
-          resource: string;
-          type: string;
-          metadata:
-            | {
-                __typename?: 'CodeReferenceMetadata';
-                anchor: number;
-                code: string;
-                head: number;
-                path: string;
-              }
-            | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-            | { __typename?: 'PreviewReferenceMetadata' }
-            | {
-                __typename?: 'UserReferenceMetadata';
-                username: string;
-                userId: string;
-              };
-        }>;
-        user: {
-          __typename?: 'User';
-          id: any;
-          name: string | null;
-          username: string;
-          avatarUrl: string;
-        };
-        parentComment: { __typename?: 'Comment'; id: any } | null;
-      }>;
-    } | null;
-  } | null;
-};
-
-export type SandboxCommentsQueryVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type SandboxCommentsQuery = {
-  __typename?: 'RootQueryType';
-  sandbox: {
-    __typename?: 'Sandbox';
-    comments: Array<{
-      __typename?: 'Comment';
-      id: any;
-      content: string | null;
-      insertedAt: any;
-      updatedAt: any;
-      isResolved: boolean;
-      replyCount: number;
-      anchorReference: {
-        __typename?: 'Reference';
-        id: any;
-        resource: string;
-        type: string;
-        metadata:
-          | {
-              __typename?: 'CodeReferenceMetadata';
-              anchor: number;
-              code: string;
-              head: number;
-              path: string;
-            }
-          | { __typename?: 'ImageReferenceMetadata' }
-          | {
-              __typename?: 'PreviewReferenceMetadata';
-              width: number;
-              height: number;
-              x: number;
-              y: number;
-              screenshotUrl: string | null;
-              userAgent: string;
-            }
-          | { __typename?: 'UserReferenceMetadata' };
-      } | null;
-      references: Array<{
-        __typename?: 'Reference';
-        id: any;
-        resource: string;
-        type: string;
-        metadata:
-          | {
-              __typename?: 'CodeReferenceMetadata';
-              anchor: number;
-              code: string;
-              head: number;
-              path: string;
-            }
-          | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-          | { __typename?: 'PreviewReferenceMetadata' }
-          | {
-              __typename?: 'UserReferenceMetadata';
-              username: string;
-              userId: string;
-            };
-      }>;
-      user: {
-        __typename?: 'User';
-        id: any;
-        name: string | null;
-        username: string;
-        avatarUrl: string;
-      };
-      parentComment: { __typename?: 'Comment'; id: any } | null;
-    }>;
-  } | null;
-};
-
-export type CommentAddedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type CommentAddedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  commentAdded: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    sandbox: { __typename?: 'Sandbox'; id: string };
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
-export type CommentChangedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type CommentChangedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  commentChanged: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    sandbox: { __typename?: 'Sandbox'; id: string };
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
-export type CommentRemovedSubscriptionVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type CommentRemovedSubscription = {
-  __typename?: 'RootSubscriptionType';
-  commentRemoved: {
-    __typename?: 'Comment';
-    id: any;
-    content: string | null;
-    insertedAt: any;
-    updatedAt: any;
-    isResolved: boolean;
-    replyCount: number;
-    sandbox: { __typename?: 'Sandbox'; id: string };
-    anchorReference: {
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata' }
-        | {
-            __typename?: 'PreviewReferenceMetadata';
-            width: number;
-            height: number;
-            x: number;
-            y: number;
-            screenshotUrl: string | null;
-            userAgent: string;
-          }
-        | { __typename?: 'UserReferenceMetadata' };
-    } | null;
-    references: Array<{
-      __typename?: 'Reference';
-      id: any;
-      resource: string;
-      type: string;
-      metadata:
-        | {
-            __typename?: 'CodeReferenceMetadata';
-            anchor: number;
-            code: string;
-            head: number;
-            path: string;
-          }
-        | { __typename?: 'ImageReferenceMetadata'; fileName: string }
-        | { __typename?: 'PreviewReferenceMetadata' }
-        | {
-            __typename?: 'UserReferenceMetadata';
-            username: string;
-            userId: string;
-          };
-    }>;
-    user: {
-      __typename?: 'User';
-      id: any;
-      name: string | null;
-      username: string;
-      avatarUrl: string;
-    };
-    parentComment: { __typename?: 'Comment'; id: any } | null;
-  };
-};
-
 export type SandboxFragmentDashboardFragment = {
   __typename?: 'Sandbox';
   id: string;
@@ -4459,7 +3342,6 @@ export type SandboxFragmentDashboardFragment = {
   removedAt: string | null;
   privacy: number;
   isFrozen: boolean;
-  isSse: boolean | null;
   screenshotUrl: string | null;
   screenshotOutdated: boolean;
   viewCount: number;
@@ -4481,7 +3363,12 @@ export type SandboxFragmentDashboardFragment = {
     color: string | null;
     iconUrl: string | null;
   } | null;
-  collection: { __typename?: 'Collection'; path: string } | null;
+  collection: {
+    __typename?: 'Collection';
+    path: string;
+    id: any | null;
+  } | null;
+  author: { __typename?: 'User'; username: string } | null;
   permissions: {
     __typename?: 'SandboxProtectionSettings';
     preventSandboxLeaving: boolean;
@@ -4502,7 +3389,6 @@ export type RepoFragmentDashboardFragment = {
   removedAt: string | null;
   privacy: number;
   isFrozen: boolean;
-  isSse: boolean | null;
   screenshotUrl: string | null;
   screenshotOutdated: boolean;
   viewCount: number;
@@ -4540,7 +3426,12 @@ export type RepoFragmentDashboardFragment = {
     color: string | null;
     iconUrl: string | null;
   } | null;
-  collection: { __typename?: 'Collection'; path: string } | null;
+  collection: {
+    __typename?: 'Collection';
+    path: string;
+    id: any | null;
+  } | null;
+  author: { __typename?: 'User'; username: string } | null;
   permissions: {
     __typename?: 'SandboxProtectionSettings';
     preventSandboxLeaving: boolean;
@@ -4573,7 +3464,6 @@ export type TemplateFragmentDashboardFragment = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -4606,7 +3496,11 @@ export type TemplateFragmentDashboardFragment = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -4619,11 +3513,9 @@ export type TeamFragmentDashboardFragment = {
   __typename?: 'Team';
   id: any;
   name: string;
-  type: TeamType;
   description: string | null;
   creatorId: any | null;
   avatarUrl: string | null;
-  legacy: boolean;
   frozen: boolean;
   insertedAt: string;
   settings: {
@@ -4661,6 +3553,16 @@ export type TeamFragmentDashboardFragment = {
     __typename?: 'TeamFeatureFlags';
     ubbBeta: boolean;
     friendOfCsb: boolean;
+  };
+  limits: {
+    __typename?: 'TeamLimits';
+    includedPublicSandboxes: number;
+    includedPrivateSandboxes: number;
+  };
+  usage: {
+    __typename?: 'TeamUsage';
+    publicSandboxesQuantity: number;
+    privateSandboxesQuantity: number;
   };
 };
 
@@ -4730,6 +3632,7 @@ export type CurrentTeamInfoFragmentFragment = {
   } | null;
   subscriptionSchedule: {
     __typename?: 'SubscriptionSchedule';
+    billingInterval: SubscriptionInterval | null;
     current: {
       __typename?: 'SubscriptionSchedulePhase';
       startDate: string | null;
@@ -4758,17 +3661,24 @@ export type CurrentTeamInfoFragmentFragment = {
   limits: {
     __typename?: 'TeamLimits';
     includedCredits: number;
-    includedSandboxes: number;
-    includedDrafts: number;
     includedVmTier: number;
     onDemandCreditLimit: number | null;
+    includedPublicSandboxes: number;
+    includedPrivateSandboxes: number;
   };
-  usage: { __typename?: 'TeamUsage'; sandboxes: number; credits: number };
+  usage: {
+    __typename?: 'TeamUsage';
+    sandboxes: number;
+    credits: number;
+    publicSandboxesQuantity: number;
+    privateSandboxesQuantity: number;
+  };
   featureFlags: {
     __typename?: 'TeamFeatureFlags';
     ubbBeta: boolean;
     friendOfCsb: boolean;
   };
+  metadata: { __typename?: 'TeamMetadata'; useCases: Array<string> };
 };
 
 export type BranchFragment = {
@@ -4778,6 +3688,7 @@ export type BranchFragment = {
   contribution: boolean;
   lastAccessedAt: string | null;
   upstream: boolean;
+  owner: { __typename?: 'User'; username: string } | null;
   project: {
     __typename?: 'Project';
     repository: {
@@ -4789,6 +3700,34 @@ export type BranchFragment = {
     };
     team: { __typename?: 'Team'; id: any } | null;
   };
+};
+
+export type BranchWithPrFragment = {
+  __typename?: 'Branch';
+  id: string;
+  name: string;
+  contribution: boolean;
+  lastAccessedAt: string | null;
+  upstream: boolean;
+  owner: { __typename?: 'User'; username: string } | null;
+  project: {
+    __typename?: 'Project';
+    repository: {
+      __typename?: 'GitHubRepository';
+      defaultBranch: string;
+      name: string;
+      owner: string;
+      private: boolean;
+    };
+    team: { __typename?: 'Team'; id: any } | null;
+  };
+  pullRequests: Array<{
+    __typename?: 'PullRequest';
+    title: string;
+    number: number;
+    additions: number | null;
+    deletions: number | null;
+  }>;
 };
 
 export type ProjectFragment = {
@@ -4816,6 +3755,7 @@ export type ProjectWithBranchesFragment = {
     contribution: boolean;
     lastAccessedAt: string | null;
     upstream: boolean;
+    owner: { __typename?: 'User'; username: string } | null;
     project: {
       __typename?: 'Project';
       repository: {
@@ -4827,6 +3767,13 @@ export type ProjectWithBranchesFragment = {
       };
       team: { __typename?: 'Team'; id: any } | null;
     };
+    pullRequests: Array<{
+      __typename?: 'PullRequest';
+      title: string;
+      number: number;
+      additions: number | null;
+      deletions: number | null;
+    }>;
   }>;
   repository: {
     __typename?: 'GitHubRepository';
@@ -4865,11 +3812,9 @@ export type _CreateTeamMutation = {
     __typename?: 'Team';
     id: any;
     name: string;
-    type: TeamType;
     description: string | null;
     creatorId: any | null;
     avatarUrl: string | null;
-    legacy: boolean;
     frozen: boolean;
     insertedAt: string;
     settings: {
@@ -4907,6 +3852,16 @@ export type _CreateTeamMutation = {
       __typename?: 'TeamFeatureFlags';
       ubbBeta: boolean;
       friendOfCsb: boolean;
+    };
+    limits: {
+      __typename?: 'TeamLimits';
+      includedPublicSandboxes: number;
+      includedPrivateSandboxes: number;
+    };
+    usage: {
+      __typename?: 'TeamUsage';
+      publicSandboxesQuantity: number;
+      privateSandboxesQuantity: number;
     };
   };
 };
@@ -4962,6 +3917,7 @@ export type AddToFolderMutationVariables = Exact<{
   collectionPath: InputMaybe<Scalars['String']>;
   sandboxIds: Array<Scalars['ID']> | Scalars['ID'];
   teamId: InputMaybe<Scalars['UUID4']>;
+  privacy: InputMaybe<Scalars['Int']>;
 }>;
 
 export type AddToFolderMutation = {
@@ -4978,7 +3934,6 @@ export type AddToFolderMutation = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -5000,7 +3955,12 @@ export type AddToFolderMutation = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
+    author: { __typename?: 'User'; username: string } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -5027,7 +3987,6 @@ export type MoveToTrashMutation = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -5049,7 +4008,12 @@ export type MoveToTrashMutation = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
+    author: { __typename?: 'User'; username: string } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -5077,7 +4041,6 @@ export type ChangePrivacyMutation = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -5099,7 +4062,12 @@ export type ChangePrivacyMutation = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
+    author: { __typename?: 'User'; username: string } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -5127,7 +4095,6 @@ export type ChangeFrozenMutation = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -5149,7 +4116,12 @@ export type ChangeFrozenMutation = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
+    author: { __typename?: 'User'; username: string } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -5177,7 +4149,6 @@ export type _RenameSandboxMutation = {
     removedAt: string | null;
     privacy: number;
     isFrozen: boolean;
-    isSse: boolean | null;
     screenshotUrl: string | null;
     screenshotOutdated: boolean;
     viewCount: number;
@@ -5199,7 +4170,12 @@ export type _RenameSandboxMutation = {
       color: string | null;
       iconUrl: string | null;
     } | null;
-    collection: { __typename?: 'Collection'; path: string } | null;
+    collection: {
+      __typename?: 'Collection';
+      path: string;
+      id: any | null;
+    } | null;
+    author: { __typename?: 'User'; username: string } | null;
     permissions: {
       __typename?: 'SandboxProtectionSettings';
       preventSandboxLeaving: boolean;
@@ -5227,11 +4203,9 @@ export type _AcceptTeamInvitationMutation = {
     __typename?: 'Team';
     id: any;
     name: string;
-    type: TeamType;
     description: string | null;
     creatorId: any | null;
     avatarUrl: string | null;
-    legacy: boolean;
     frozen: boolean;
     insertedAt: string;
     settings: {
@@ -5269,6 +4243,16 @@ export type _AcceptTeamInvitationMutation = {
       __typename?: 'TeamFeatureFlags';
       ubbBeta: boolean;
       friendOfCsb: boolean;
+    };
+    limits: {
+      __typename?: 'TeamLimits';
+      includedPublicSandboxes: number;
+      includedPrivateSandboxes: number;
+    };
+    usage: {
+      __typename?: 'TeamUsage';
+      publicSandboxesQuantity: number;
+      privateSandboxesQuantity: number;
     };
   };
 };
@@ -5311,11 +4295,9 @@ export type _SetTeamNameMutation = {
     __typename?: 'Team';
     id: any;
     name: string;
-    type: TeamType;
     description: string | null;
     creatorId: any | null;
     avatarUrl: string | null;
-    legacy: boolean;
     frozen: boolean;
     insertedAt: string;
     settings: {
@@ -5353,6 +4335,16 @@ export type _SetTeamNameMutation = {
       __typename?: 'TeamFeatureFlags';
       ubbBeta: boolean;
       friendOfCsb: boolean;
+    };
+    limits: {
+      __typename?: 'TeamLimits';
+      includedPublicSandboxes: number;
+      includedPrivateSandboxes: number;
+    };
+    usage: {
+      __typename?: 'TeamUsage';
+      publicSandboxesQuantity: number;
+      privateSandboxesQuantity: number;
     };
   };
 };
@@ -5499,6 +4491,7 @@ export type PreviewConvertToUsageBillingMutationVariables = Exact<{
   teamId: Scalars['UUID4'];
   addons: Array<Scalars['String']> | Scalars['String'];
   plan: Scalars['String'];
+  billingInterval: InputMaybe<SubscriptionInterval>;
 }>;
 
 export type PreviewConvertToUsageBillingMutation = {
@@ -5514,6 +4507,7 @@ export type ConvertToUsageBillingMutationVariables = Exact<{
   teamId: Scalars['UUID4'];
   addons: Array<Scalars['String']> | Scalars['String'];
   plan: Scalars['String'];
+  billingInterval: InputMaybe<SubscriptionInterval>;
 }>;
 
 export type ConvertToUsageBillingMutation = {
@@ -5521,14 +4515,31 @@ export type ConvertToUsageBillingMutation = {
   convertToUsageBilling: boolean;
 };
 
-export type UpdateUsageSubscriptionMutationVariables = Exact<{
+export type PreviewUpdateUsageSubscriptionPlanMutationVariables = Exact<{
   teamId: Scalars['UUID4'];
-  addons: Array<Scalars['String']> | Scalars['String'];
+  plan: Scalars['String'];
+  billingInterval: InputMaybe<SubscriptionInterval>;
 }>;
 
-export type UpdateUsageSubscriptionMutation = {
+export type PreviewUpdateUsageSubscriptionPlanMutation = {
   __typename?: 'RootMutationType';
-  updateUsageSubscription: boolean;
+  previewUpdateUsageSubscriptionPlan: {
+    __typename?: 'InvoicePreview';
+    total: number;
+    totalExcludingTax: number | null;
+    updateMoment: SubscriptionUpdateMoment | null;
+  };
+};
+
+export type UpdateSubscriptionPlanMutationVariables = Exact<{
+  teamId: Scalars['UUID4'];
+  plan: Scalars['String'];
+  billingInterval: InputMaybe<SubscriptionInterval>;
+}>;
+
+export type UpdateSubscriptionPlanMutation = {
+  __typename?: 'RootMutationType';
+  updateUsageSubscriptionPlan: boolean;
 };
 
 export type UpdateProjectVmTierMutationVariables = Exact<{
@@ -5544,6 +4555,80 @@ export type UpdateProjectVmTierMutation = {
     memory: number;
     storage: number;
   };
+};
+
+export type SetTeamMetadataMutationVariables = Exact<{
+  teamId: Scalars['UUID4'];
+  useCases: Array<Scalars['String']> | Scalars['String'];
+}>;
+
+export type SetTeamMetadataMutation = {
+  __typename?: 'RootMutationType';
+  setTeamMetadata: {
+    __typename?: 'Team';
+    id: any;
+    name: string;
+    description: string | null;
+    creatorId: any | null;
+    avatarUrl: string | null;
+    frozen: boolean;
+    insertedAt: string;
+    settings: {
+      __typename?: 'WorkspaceSandboxSettings';
+      minimumPrivacy: number;
+    } | null;
+    userAuthorizations: Array<{
+      __typename?: 'UserAuthorization';
+      userId: any;
+      authorization: TeamMemberAuthorization;
+      teamManager: boolean;
+    }>;
+    users: Array<{
+      __typename?: 'User';
+      id: any;
+      name: string | null;
+      username: string;
+      avatarUrl: string;
+    }>;
+    invitees: Array<{
+      __typename?: 'User';
+      id: any;
+      name: string | null;
+      username: string;
+      avatarUrl: string;
+    }>;
+    subscription: {
+      __typename?: 'ProSubscription';
+      origin: SubscriptionOrigin | null;
+      type: SubscriptionType;
+      status: SubscriptionStatus;
+      paymentProvider: SubscriptionPaymentProvider | null;
+    } | null;
+    featureFlags: {
+      __typename?: 'TeamFeatureFlags';
+      ubbBeta: boolean;
+      friendOfCsb: boolean;
+    };
+    limits: {
+      __typename?: 'TeamLimits';
+      includedPublicSandboxes: number;
+      includedPrivateSandboxes: number;
+    };
+    usage: {
+      __typename?: 'TeamUsage';
+      publicSandboxesQuantity: number;
+      privateSandboxesQuantity: number;
+    };
+  };
+};
+
+export type JoinEligibleWorkspaceMutationVariables = Exact<{
+  workspaceId: Scalars['ID'];
+}>;
+
+export type JoinEligibleWorkspaceMutation = {
+  __typename?: 'RootMutationType';
+  joinEligibleWorkspace: { __typename?: 'Team'; id: any };
 };
 
 export type RecentlyDeletedTeamSandboxesQueryVariables = Exact<{
@@ -5568,7 +4653,6 @@ export type RecentlyDeletedTeamSandboxesQuery = {
         removedAt: string | null;
         privacy: number;
         isFrozen: boolean;
-        isSse: boolean | null;
         screenshotUrl: string | null;
         screenshotOutdated: boolean;
         viewCount: number;
@@ -5590,7 +4674,12 @@ export type RecentlyDeletedTeamSandboxesQuery = {
           color: string | null;
           iconUrl: string | null;
         } | null;
-        collection: { __typename?: 'Collection'; path: string } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
         permissions: {
           __typename?: 'SandboxProtectionSettings';
           preventSandboxLeaving: boolean;
@@ -5632,7 +4721,6 @@ export type SandboxesByPathQuery = {
         removedAt: string | null;
         privacy: number;
         isFrozen: boolean;
-        isSse: boolean | null;
         screenshotUrl: string | null;
         screenshotOutdated: boolean;
         viewCount: number;
@@ -5654,7 +4742,12 @@ export type SandboxesByPathQuery = {
           color: string | null;
           iconUrl: string | null;
         } | null;
-        collection: { __typename?: 'Collection'; path: string } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
         permissions: {
           __typename?: 'SandboxProtectionSettings';
           preventSandboxLeaving: boolean;
@@ -5688,7 +4781,6 @@ export type TeamDraftsQuery = {
         removedAt: string | null;
         privacy: number;
         isFrozen: boolean;
-        isSse: boolean | null;
         screenshotUrl: string | null;
         screenshotOutdated: boolean;
         viewCount: number;
@@ -5710,7 +4802,12 @@ export type TeamDraftsQuery = {
           color: string | null;
           iconUrl: string | null;
         } | null;
-        collection: { __typename?: 'Collection'; path: string } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
         permissions: {
           __typename?: 'SandboxProtectionSettings';
           preventSandboxLeaving: boolean;
@@ -5761,7 +4858,6 @@ export type GetTeamReposQuery = {
         removedAt: string | null;
         privacy: number;
         isFrozen: boolean;
-        isSse: boolean | null;
         screenshotUrl: string | null;
         screenshotOutdated: boolean;
         viewCount: number;
@@ -5799,7 +4895,12 @@ export type GetTeamReposQuery = {
           color: string | null;
           iconUrl: string | null;
         } | null;
-        collection: { __typename?: 'Collection'; path: string } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
         permissions: {
           __typename?: 'SandboxProtectionSettings';
           preventSandboxLeaving: boolean;
@@ -5840,7 +4941,6 @@ export type TeamTemplatesQuery = {
           removedAt: string | null;
           privacy: number;
           isFrozen: boolean;
-          isSse: boolean | null;
           screenshotUrl: string | null;
           screenshotOutdated: boolean;
           viewCount: number;
@@ -5873,7 +4973,11 @@ export type TeamTemplatesQuery = {
             color: string | null;
             iconUrl: string | null;
           } | null;
-          collection: { __typename?: 'Collection'; path: string } | null;
+          collection: {
+            __typename?: 'Collection';
+            path: string;
+            id: any | null;
+          } | null;
           permissions: {
             __typename?: 'SandboxProtectionSettings';
             preventSandboxLeaving: boolean;
@@ -5896,11 +5000,9 @@ export type AllTeamsQuery = {
       __typename?: 'Team';
       id: any;
       name: string;
-      type: TeamType;
       description: string | null;
       creatorId: any | null;
       avatarUrl: string | null;
-      legacy: boolean;
       frozen: boolean;
       insertedAt: string;
       settings: {
@@ -5939,6 +5041,16 @@ export type AllTeamsQuery = {
         ubbBeta: boolean;
         friendOfCsb: boolean;
       };
+      limits: {
+        __typename?: 'TeamLimits';
+        includedPublicSandboxes: number;
+        includedPrivateSandboxes: number;
+      };
+      usage: {
+        __typename?: 'TeamUsage';
+        publicSandboxesQuantity: number;
+        privateSandboxesQuantity: number;
+      };
     }>;
   } | null;
 };
@@ -5965,7 +5077,6 @@ export type _SearchTeamSandboxesQuery = {
         removedAt: string | null;
         privacy: number;
         isFrozen: boolean;
-        isSse: boolean | null;
         screenshotUrl: string | null;
         screenshotOutdated: boolean;
         viewCount: number;
@@ -5987,7 +5098,12 @@ export type _SearchTeamSandboxesQuery = {
           color: string | null;
           iconUrl: string | null;
         } | null;
-        collection: { __typename?: 'Collection'; path: string } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
         permissions: {
           __typename?: 'SandboxProtectionSettings';
           preventSandboxLeaving: boolean;
@@ -6019,7 +5135,6 @@ export type RecentlyAccessedSandboxesQuery = {
       removedAt: string | null;
       privacy: number;
       isFrozen: boolean;
-      isSse: boolean | null;
       screenshotUrl: string | null;
       screenshotOutdated: boolean;
       viewCount: number;
@@ -6041,7 +5156,12 @@ export type RecentlyAccessedSandboxesQuery = {
         color: string | null;
         iconUrl: string | null;
       } | null;
-      collection: { __typename?: 'Collection'; path: string } | null;
+      collection: {
+        __typename?: 'Collection';
+        path: string;
+        id: any | null;
+      } | null;
+      author: { __typename?: 'User'; username: string } | null;
       permissions: {
         __typename?: 'SandboxProtectionSettings';
         preventSandboxLeaving: boolean;
@@ -6067,6 +5187,7 @@ export type RecentlyAccessedBranchesQuery = {
       contribution: boolean;
       lastAccessedAt: string | null;
       upstream: boolean;
+      owner: { __typename?: 'User'; username: string } | null;
       project: {
         __typename?: 'Project';
         repository: {
@@ -6102,7 +5223,6 @@ export type SharedWithMeSandboxesQuery = {
       removedAt: string | null;
       privacy: number;
       isFrozen: boolean;
-      isSse: boolean | null;
       screenshotUrl: string | null;
       screenshotOutdated: boolean;
       viewCount: number;
@@ -6124,7 +5244,12 @@ export type SharedWithMeSandboxesQuery = {
         color: string | null;
         iconUrl: string | null;
       } | null;
-      collection: { __typename?: 'Collection'; path: string } | null;
+      collection: {
+        __typename?: 'Collection';
+        path: string;
+        id: any | null;
+      } | null;
+      author: { __typename?: 'User'; username: string } | null;
       permissions: {
         __typename?: 'SandboxProtectionSettings';
         preventSandboxLeaving: boolean;
@@ -6208,6 +5333,7 @@ export type GetTeamQuery = {
       } | null;
       subscriptionSchedule: {
         __typename?: 'SubscriptionSchedule';
+        billingInterval: SubscriptionInterval | null;
         current: {
           __typename?: 'SubscriptionSchedulePhase';
           startDate: string | null;
@@ -6236,17 +5362,24 @@ export type GetTeamQuery = {
       limits: {
         __typename?: 'TeamLimits';
         includedCredits: number;
-        includedSandboxes: number;
-        includedDrafts: number;
         includedVmTier: number;
         onDemandCreditLimit: number | null;
+        includedPublicSandboxes: number;
+        includedPrivateSandboxes: number;
       };
-      usage: { __typename?: 'TeamUsage'; sandboxes: number; credits: number };
+      usage: {
+        __typename?: 'TeamUsage';
+        sandboxes: number;
+        credits: number;
+        publicSandboxesQuantity: number;
+        privateSandboxesQuantity: number;
+      };
       featureFlags: {
         __typename?: 'TeamFeatureFlags';
         ubbBeta: boolean;
         friendOfCsb: boolean;
       };
+      metadata: { __typename?: 'TeamMetadata'; useCases: Array<string> };
     } | null;
   } | null;
 };
@@ -6266,6 +5399,7 @@ export type ContributionBranchesQuery = {
       contribution: boolean;
       lastAccessedAt: string | null;
       upstream: boolean;
+      owner: { __typename?: 'User'; username: string } | null;
       project: {
         __typename?: 'Project';
         repository: {
@@ -6330,6 +5464,7 @@ export type RepositoryByDetailsQuery = {
       contribution: boolean;
       lastAccessedAt: string | null;
       upstream: boolean;
+      owner: { __typename?: 'User'; username: string } | null;
       project: {
         __typename?: 'Project';
         repository: {
@@ -6341,6 +5476,13 @@ export type RepositoryByDetailsQuery = {
         };
         team: { __typename?: 'Team'; id: any } | null;
       };
+      pullRequests: Array<{
+        __typename?: 'PullRequest';
+        title: string;
+        number: number;
+        additions: number | null;
+        deletions: number | null;
+      }>;
     }>;
     repository: {
       __typename?: 'GitHubRepository';
@@ -6484,6 +5626,24 @@ export type GetSandboxWithTemplateQuery = {
   } | null;
 };
 
+export type GetEligibleWorkspacesQueryVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type GetEligibleWorkspacesQuery = {
+  __typename?: 'RootQueryType';
+  me: {
+    __typename?: 'CurrentUser';
+    eligibleWorkspaces: Array<{
+      __typename?: 'TeamPreview';
+      id: any;
+      avatarUrl: string | null;
+      name: string;
+      shortid: string;
+    }>;
+  } | null;
+};
+
 export type RecentNotificationFragment = {
   __typename?: 'Notification';
   id: any;
@@ -6618,7 +5778,12 @@ export type SidebarTemplateFragmentFragment = {
 
 export type SidebarProjectFragmentFragment = {
   __typename?: 'Project';
-  repository: { __typename?: 'GitHubRepository'; name: string; owner: string };
+  repository: {
+    __typename?: 'GitHubRepository';
+    name: string;
+    owner: string;
+    defaultBranch: string;
+  };
 };
 
 export type TeamSidebarDataQueryVariables = Exact<{
@@ -6631,7 +5796,7 @@ export type TeamSidebarDataQuery = {
     __typename?: 'CurrentUser';
     team: {
       __typename?: 'Team';
-      sandboxes: Array<{ __typename?: 'Sandbox'; id: string }>;
+      syncedSandboxes: Array<{ __typename?: 'Sandbox'; id: string }>;
       templates: Array<{ __typename?: 'Template'; id: any | null }>;
       projects: Array<{
         __typename?: 'Project';
@@ -6639,7 +5804,53 @@ export type TeamSidebarDataQuery = {
           __typename?: 'GitHubRepository';
           name: string;
           owner: string;
+          defaultBranch: string;
         };
+      }>;
+      sandboxes: Array<{
+        __typename?: 'Sandbox';
+        id: string;
+        alias: string | null;
+        title: string | null;
+        description: string | null;
+        lastAccessedAt: any;
+        insertedAt: string;
+        updatedAt: string;
+        removedAt: string | null;
+        privacy: number;
+        isFrozen: boolean;
+        screenshotUrl: string | null;
+        screenshotOutdated: boolean;
+        viewCount: number;
+        likeCount: number;
+        isV2: boolean;
+        draft: boolean;
+        restricted: boolean;
+        authorId: any | null;
+        teamId: any | null;
+        source: { __typename?: 'Source'; template: string | null };
+        customTemplate: {
+          __typename?: 'Template';
+          id: any | null;
+          iconUrl: string | null;
+        } | null;
+        forkedTemplate: {
+          __typename?: 'Template';
+          id: any | null;
+          color: string | null;
+          iconUrl: string | null;
+        } | null;
+        collection: {
+          __typename?: 'Collection';
+          path: string;
+          id: any | null;
+        } | null;
+        author: { __typename?: 'User'; username: string } | null;
+        permissions: {
+          __typename?: 'SandboxProtectionSettings';
+          preventSandboxLeaving: boolean;
+          preventSandboxExport: boolean;
+        } | null;
       }>;
     } | null;
   } | null;
@@ -7152,86 +6363,6 @@ export type RejectTeamInvitationMutationVariables = Exact<{
 export type RejectTeamInvitationMutation = {
   __typename?: 'RootMutationType';
   rejectTeamInvitation: string;
-};
-
-export type BookmarkTemplateMutationVariables = Exact<{
-  template: Scalars['UUID4'];
-  team: InputMaybe<Scalars['UUID4']>;
-}>;
-
-export type BookmarkTemplateMutation = {
-  __typename?: 'RootMutationType';
-  template: {
-    __typename?: 'Template';
-    id: any | null;
-    bookmarked: Array<{
-      __typename?: 'Bookmarked';
-      isBookmarked: boolean | null;
-      entity:
-        | { __typename: 'Team'; id: any; name: string }
-        | { __typename: 'User'; id: any; name: string }
-        | null;
-    } | null> | null;
-  } | null;
-};
-
-export type UnbookmarkTemplateMutationVariables = Exact<{
-  template: Scalars['UUID4'];
-  team: InputMaybe<Scalars['UUID4']>;
-}>;
-
-export type UnbookmarkTemplateMutation = {
-  __typename?: 'RootMutationType';
-  template: {
-    __typename?: 'Template';
-    id: any | null;
-    bookmarked: Array<{
-      __typename?: 'Bookmarked';
-      isBookmarked: boolean | null;
-      entity:
-        | { __typename: 'Team'; id: any; name: string }
-        | { __typename: 'User'; id: any; name: string }
-        | null;
-    } | null> | null;
-  } | null;
-};
-
-export type BookmarkTemplateFieldsFragment = {
-  __typename?: 'Template';
-  id: any | null;
-  bookmarked: Array<{
-    __typename?: 'Bookmarked';
-    isBookmarked: boolean | null;
-    entity:
-      | { __typename: 'Team'; id: any; name: string }
-      | { __typename: 'User'; id: any; name: string }
-      | null;
-  } | null> | null;
-};
-
-export type BookmarkedSandboxInfoQueryVariables = Exact<{
-  sandboxId: Scalars['ID'];
-}>;
-
-export type BookmarkedSandboxInfoQuery = {
-  __typename?: 'RootQueryType';
-  sandbox: {
-    __typename?: 'Sandbox';
-    id: string;
-    author: { __typename?: 'User'; id: any; name: string } | null;
-    customTemplate: {
-      __typename?: 'Template';
-      id: any | null;
-      bookmarked: Array<{
-        __typename?: 'Bookmarked';
-        isBookmarked: boolean | null;
-        entity:
-          | { __typename: 'Team'; id: any; name: string }
-          | { __typename: 'User'; id: any; name: string }
-          | null;
-      } | null> | null;
-    } | null;
-  } | null;
 };
 
 export type TeamByTokenQueryVariables = Exact<{

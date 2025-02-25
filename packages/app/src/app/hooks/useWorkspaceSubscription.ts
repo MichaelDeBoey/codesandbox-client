@@ -1,6 +1,5 @@
 import {
   CurrentTeamInfoFragmentFragment,
-  SubscriptionPaymentProvider,
   SubscriptionStatus,
 } from 'app/graphql/types';
 import { useAppState } from 'app/overmind';
@@ -51,16 +50,20 @@ export const useWorkspaceSubscription = (): WorkspaceSubscriptionReturn => {
   const isFree = !isPro;
 
   const hasPaymentMethod = subscription.paymentMethodAttached;
+  const basePlanItem = activeTeamInfo.subscriptionSchedule?.current?.items.find(
+    item => item.name.includes('builder') || item.name.includes('flex')
+  );
 
-  const isPaddle =
-    subscription.paymentProvider === SubscriptionPaymentProvider.Paddle;
+  // Yearly plans have an annual suffix which is not relevant for us here
+  const proPlanType =
+    basePlanItem?.name.replace('_annual', '') === 'flex' ? 'flex' : 'builder';
 
   return {
     subscription,
     isPro,
     isFree,
     hasPaymentMethod,
-    isPaddle,
+    proPlanType,
   };
 };
 
@@ -69,7 +72,7 @@ const NO_WORKSPACE = {
   isPro: undefined,
   isFree: undefined,
   hasPaymentMethod: undefined,
-  isPaddle: undefined,
+  proPlanType: undefined,
 };
 
 const NO_SUBSCRIPTION = {
@@ -77,7 +80,7 @@ const NO_SUBSCRIPTION = {
   isPro: false,
   isFree: true,
   hasPaymentMethod: false,
-  isPaddle: false,
+  proPlanType: null,
 };
 
 export type WorkspaceSubscriptionReturn =
@@ -88,5 +91,5 @@ export type WorkspaceSubscriptionReturn =
       isPro: boolean;
       isFree: boolean;
       hasPaymentMethod: boolean;
-      isPaddle: boolean;
+      proPlanType: 'flex' | 'builder';
     };

@@ -17,7 +17,6 @@ import {
 } from 'sandpack-core/lib/sandpack-secret';
 import compile, { getCurrentManager } from './compile';
 
-const host = process.env.CODESANDBOX_HOST;
 const withServiceWorker = !process.env.SANDPACK;
 const debug = _debug('cs:sandbox');
 
@@ -72,6 +71,15 @@ requirePolyfills().then(() => {
             data: {},
           });
         }
+      } else if (data.type === 'get-modules') {
+        const manager = getCurrentManager();
+
+        if (manager) {
+          dispatch({
+            type: 'all-modules',
+            data: manager.getModules(),
+          });
+        }
       } else if (data.type === 'sign-in') {
         await requestSandpackSecretFromApp(data.teamId);
 
@@ -94,7 +102,7 @@ requirePolyfills().then(() => {
     // We need to fetch the sandbox ourselves...
     const id = getSandboxId();
     window
-      .fetch(host + `/api/v1/sandboxes/${id}`, {
+      .fetch(`/api/v1/sandboxes/${id}`, {
         headers: {
           Accept: 'application/json',
           Authorization: `Basic ${getPreviewSecret()}`,

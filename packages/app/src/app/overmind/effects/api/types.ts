@@ -65,20 +65,29 @@ export type VMTier = {
   tier: number;
 };
 
+type APIPricingPlanDetails = {
+  cost_month: number;
+  cost_year: number;
+  credits: number;
+  drafts: number;
+  members: number;
+  sandboxes: number;
+  storage: number;
+  vm_tier: number;
+};
+
 export type APIPricingResult = {
   addons: Record<
     CreditAddonType,
-    { credits: number; cost_month: number; sandboxes: number }
+    {
+      credits: number;
+      cost_month: number;
+      cost_year: number;
+      sandboxes: number;
+    }
   >;
   base: {
-    flex: {
-      cost_month: number;
-      credits: number;
-      drafts: number;
-      members: number;
-      sandboxes: number;
-      storage: number;
-      vm_tier: number;
-    };
+    flex: APIPricingPlanDetails;
+    builder: APIPricingPlanDetails;
   };
 };

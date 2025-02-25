@@ -2,12 +2,12 @@ import {
   Collection,
   SandboxFragmentDashboardFragment,
   SidebarCollectionDashboardFragment,
+  ProjectFragment as Repository,
 } from 'app/graphql/types';
 import { useAppState, useActions } from 'app/overmind';
 import Fuse from 'fuse.js';
 import React, { useEffect } from 'react';
 import { sandboxesTypes } from 'app/overmind/namespaces/dashboard/types';
-import type { ProjectFragment as Repository } from 'app/graphql/types';
 
 const useSearchedSandboxes = (query: string) => {
   const state = useAppState();
@@ -48,10 +48,8 @@ const useSearchedSandboxes = (query: string) => {
 };
 
 const calculateSearchIndex = (dashboard: any, activeTeam: string) => {
-  const sandboxes = dashboard.sandboxes.SEARCH;
-  if (sandboxes == null) {
-    return null;
-  }
+  const sandboxes = dashboard.sandboxes.SEARCH || [];
+
   const folders: Collection[] = (dashboard.allCollections || [])
     .map(collection => ({
       ...collection,
@@ -60,7 +58,7 @@ const calculateSearchIndex = (dashboard: any, activeTeam: string) => {
     .filter(f => f.title);
 
   const teamRepos = dashboard.repositoriesByTeamId[activeTeam] ?? [];
-  const repositories = teamRepos.map((repo: Repository) => {
+  const repositories = (teamRepos || []).map((repo: Repository) => {
     return {
       title: repo.repository.name,
       /**
@@ -72,7 +70,7 @@ const calculateSearchIndex = (dashboard: any, activeTeam: string) => {
     };
   });
 
-  return new Fuse([...sandboxes, ...folders, ...(repositories || [])], {
+  return new Fuse([...sandboxes, ...folders, ...repositories], {
     threshold: 0.1,
     distance: 1000,
     keys: [
@@ -85,7 +83,20 @@ const calculateSearchIndex = (dashboard: any, activeTeam: string) => {
   });
 };
 
-export const useGetItems = ({ query, getFilteredSandboxes }) => {
+export const useGetItems = ({
+  query,
+  username,
+  getFilteredSandboxes,
+}: {
+  query: string;
+  username: string;
+  getFilteredSandboxes: (
+    sandboxes: (
+      | SandboxFragmentDashboardFragment
+      | SidebarCollectionDashboardFragment
+    )[]
+  ) => SandboxFragmentDashboardFragment[];
+}) => {
   const foundResults: Array<
     SandboxFragmentDashboardFragment | SidebarCollectionDashboardFragment
   > = useSearchedSandboxes(query) || [];
@@ -99,7 +110,22 @@ export const useGetItems = ({ query, getFilteredSandboxes }) => {
     sandboxesInSearch
   );
 
-  const orderedSandboxes = [...foldersInSearch, ...filteredSandboxes];
+  const orderedSandboxes = [...foldersInSearch, ...filteredSandboxes].filter(
+    item => {
+      // @ts-ignore
+      if (item.path || item.repository) {
+        return true;
+      }
+
+      const sandbox = item as SandboxFragmentDashboardFragment;
+
+      // Remove draft sandboxes from other authors
+      return (
+        !sandbox.draft ||
+        (sandbox.draft && sandbox.author.username === username)
+      );
+    }
+  );
 
   // @ts-ignore
   const items: DashboardGridItem[] =
